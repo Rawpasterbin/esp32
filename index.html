@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0f1e" />
+  <title>Smart Water Valve | ระบบควบคุมวาล์วน้ำอัตโนมัติ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#2dd4bf', light: '#5eead4', dark: '#0d9488' },
+            surface: 'rgba(255, 255, 255, 0.06)',
+            border: 'rgba(255, 255, 255, 0.12)'
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      font-family: 'Noto Sans Thai', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    body {
+      background: radial-gradient(1200px 800px at 10% -10%, rgba(45, 212, 191, 0.15), transparent 60%),
+                  radial-gradient(1000px 700px at 110% 110%, rgba(56, 189, 248, 0.12), transparent 60%),
+                  linear-gradient(180deg, #0f172a 0%, #020617 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+    .glass-inset {
+      background: rgba(2, 6, 23, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-teal { box-shadow: 0 0 20px rgba(45, 212, 191, 0.35); }
+    .glow-blue { box-shadow: 0 0 20px rgba(56, 189, 248, 0.35); }
+
+    /* ===== Toggle Switch ===== */
+    .switch {
+      position: relative;
+      width: 58px;
+      height: 32px;
+      flex-shrink: 0;
+      display: inline-block;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: rgba(100, 116, 139, 0.35);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      height: 24px;
+      width: 24px;
+      left: 3px;
+      top: 3px;
+      background: #94a3b8;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+    .switch input:checked + .slider { background: #2dd4bf; border-color: #2dd4bf; }
+    .switch input:checked + .slider::before {
+      transform: translateX(26px);
+      background: #ffffff;
+      box-shadow: 0 0 12px rgba(45, 212, 191, 0.9);
+    }
+    .switch-blue input:checked + .slider { background: #38bdf8; border-color: #38bdf8; }
+    .switch-blue input:checked + .slider::before { box-shadow: 0 0 12px rgba(56, 189, 248, 0.9); }
+
+    /* ===== Water Flow Animation (valve open) ===== */
+    .flow-line {
+      position: relative;
+      overflow: hidden;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(100, 116, 139, 0.25);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .flow-line .flow {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, #2dd4bf, #38bdf8, transparent);
+      background-size: 200% 100%;
+      animation: flow 1.1s linear infinite;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .flow-line.on .flow { opacity: 1; }
+    @keyframes flow {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .valve-icon-wrap {
+      transition: all 0.4s ease;
+    }
+    .valve-icon-wrap.on {
+      animation: dropletPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes dropletPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.45); }
+      50% { box-shadow: 0 0 0 10px rgba(45, 212, 191, 0); }
+    }
+
+    .pulse-dot { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.5); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(45, 212, 191, 0); }
+    }
+    .spin-slow { animation: spin 1.5s linear infinite; }
+
+    .day-chip {
+      user-select: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(148, 163, 184, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #94a3b8;
+    }
+    .day-chip.active {
+      background: rgba(45, 212, 191, 0.2);
+      border-color: #2dd4bf;
+      color: #5eead4;
+    }
+
+    .count-input {
+      width: 76px;
+      text-align: center;
+      background: rgba(2, 6, 23, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 6px 4px;
+      color: #e2e8f0;
+      outline: none;
+    }
+    .count-input:focus { border-color: #2dd4bf; }
+
+    input[type="time"] {
+      background: rgba(2, 6, 23, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 8px 10px;
+      color: #e2e8f0;
+      outline: none;
+      color-scheme: dark;
+      width: 100%;
+    }
+    input[type="time"]:focus { border-color: #2dd4bf; }
+
+    .schedule-slot { transition: all 0.25s ease; }
+    .schedule-slot.disabled { opacity: 0.5; }
+
+    .badge {
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(45, 212, 191, 0.4);
+      color: #e2e8f0;
+      padding: 12px 20px;
+      border-radius: 14px;
+      font-size: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      z-index: 1000;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 999px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body class="p-4 sm:p-6 pb-24">
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <div class="max-w-6xl mx-auto">
+
+    <!-- ================= HEADER BAR ================= -->
+    <header class="glass rounded-2xl p-4 sm:p-5 mb-4">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="flex items-center gap-3 flex-1">
+          <div id="valveIconHeader" class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl valve-icon-wrap" style="background: linear-gradient(135deg, rgba(45,212,191,0.3), rgba(56,189,248,0.3));">💧</div>
+          <div>
+            <h1 class="text-lg font-bold text-white leading-tight">ระบบควบคุมวาล์วน้ำอัตโนมัติ</h1>
+            <p class="text-xs text-slate-400">Smart Water Valve · ESP32</p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- ESP32 Connection Status -->
+          <div id="espStatusCard" class="glass-inset rounded-xl px-3 py-2 flex items-center gap-2">
+            <span id="espDot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+            <div class="leading-tight">
+              <div id="espStatusText" class="text-xs font-bold text-slate-400">ESP32</div>
+              <div id="espStatusDetail" class="text-[10px] text-slate-500">กำลังเชื่อมต่อ...</div>
+            </div>
+          </div>
+
+          <!-- Current Time -->
+          <div class="glass-inset rounded-xl px-3 py-2 text-center">
+            <div id="currentTime" class="text-sm font-bold text-white tabular-nums">--:--:--</div>
+            <div id="currentDate" class="text-[10px] text-slate-500">---</div>
+          </div>
+
+          <!-- Mode Switch (Auto / Manual) -->
+          <div class="glass-inset rounded-xl px-3 py-2 flex items-center gap-2">
+            <span class="text-[10px] font-bold text-slate-400">โหมด</span>
+            <div class="flex items-center bg-slate-900/60 rounded-full p-1">
+              <button id="btnAuto" onclick="setMode('auto')" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">🔄 อัตโนมัติ</button>
+              <button id="btnManual" onclick="setMode('manual')" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">✋ แมนนวล</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= VALVE STATUS CARD ================= -->
+    <section class="glass rounded-2xl p-4 sm:p-5 mb-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-white flex items-center gap-2"><span>🚰</span> สถานะวาล์วน้ำ</h2>
+        <span id="valveStateBadge" class="badge" style="background: rgba(100,116,139,0.2); border: 1px solid rgba(148,163,184,0.35); color:#94a3b8;">วาล์วปิด</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <!-- Valve icon -->
+        <div class="glass-inset rounded-2xl p-4 flex flex-col items-center justify-center">
+          <div id="valveIcon" class="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl valve-icon-wrap transition-all" style="background: rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.3);">🚱</div>
+          <div id="valveStatusText" class="mt-2 text-sm font-bold text-slate-400">วาล์วปิดอยู่</div>
+          <div id="valveStatusSub" class="text-[10px] text-slate-500">ไม่มีการปล่อยน้ำ</div>
+        </div>
+
+        <!-- Water flow indicator -->
+        <div class="glass-inset rounded-2xl p-4 flex flex-col justify-center">
+          <div class="text-[11px] text-slate-400 mb-2">การไหลของน้ำ</div>
+          <div id="flowLine" class="flow-line mb-2"><div class="flow"></div></div>
+          <div class="flex items-center justify-between">
+            <span id="flowValue" class="text-xl font-bold text-white tabular-nums">0.0</span>
+            <span class="text-[11px] text-slate-500">L/min</span>
+          </div>
+        </div>
+
+        <!-- Countdown / next schedule -->
+        <div class="glass-inset rounded-2xl p-4 flex flex-col justify-center">
+          <div class="text-[11px] text-slate-400 mb-2">⏱️ นับถอยหลัง / กำหนดการ</div>
+          <div id="valveTimerText" class="text-xl font-bold text-white tabular-nums">--:--</div>
+          <div id="valveTimerSub" class="text-[10px] text-slate-500">ยังไม่มีเวลานับถอยหลัง</div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="text-sm text-slate-400">
+          <span id="modeHint" class="font-bold text-slate-200">✋ โหมดแมนนวล</span>
+          <span class="text-slate-500"> · ควบคุมวาล์วได้ด้วยตนเอง</span>
+        </div>
+        <button id="btnResetDemo" onclick="resetDemoData()" class="text-[11px] font-bold px-3 py-2 rounded-lg bg-slate-500/15 text-slate-400 border border-slate-500/30 hover:bg-slate-500/25 transition-all">🔄 รีเซ็ตข้อมูล</button>
+      </div>
+    </section>
+
+    <!-- ================= MANUAL CONTROL CARD ================= -->
+    <section class="glass rounded-2xl p-4 sm:p-5 mb-4">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="font-bold text-white flex items-center gap-2"><span>🎛️</span> ควบคุมแมนนวล</h2>
+        <span id="manualHint" class="text-[11px] text-slate-500">พร้อมใช้งาน</span>
+      </div>
+      <p class="text-[11px] text-slate-500 mb-4">เปิด-ปิดวาล์วน้ำ และตั้งเวลานับถอยหลังเพื่อปิดวาล์วอัตโนมัติ</p>
+
+      <div class="glass-inset rounded-2xl p-4 mb-4 flex items-center justify-between">
+        <div>
+          <div class="text-sm font-bold text-white">💦 วาล์วน้ำหลัก</div>
+          <div id="manualValveStatus" class="text-[11px] text-slate-500">กดสวิตช์เพื่อเปิด/ปิด</div>
+        </div>
+        <label class="switch switch-blue">
+          <input type="checkbox" id="manualValveToggle" onchange="toggleManualValve()" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Countdown controls -->
+      <div class="glass-inset rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-bold text-white">⏱️ ตั้งเวลานับถอยหลัง</div>
+          <span class="badge" style="background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.35); color:#7dd3fc;">ปิดวาล์วอัตโนมัติ</span>
+        </div>
+
+        <div id="countdownForm">
+          <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <span class="text-[11px] text-slate-400">ตั้งเปิดทิ้งไว้</span>
+            <input type="number" id="countdownMinutes" class="count-input" min="1" max="1440" value="15" />
+            <span class="text-[11px] text-slate-400">นาที แล้วปิดเอง</span>
+          </div>
+          <div class="flex items-center gap-2 mb-3 flex-wrap">
+            <span class="text-[11px] text-slate-400">ลัด:</span>
+            <button onclick="quickCountdown(5)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">5 นาที</button>
+            <button onclick="quickCountdown(10)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">10 นาที</button>
+            <button onclick="quickCountdown(15)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">15 นาที</button>
+            <button onclick="quickCountdown(30)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">30 นาที</button>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button id="btnStartCountdown" onclick="startCountdown()" class="text-sm font-bold px-5 py-2.5 rounded-xl bg-teal-400 text-slate-900 shadow-lg glow-teal hover:bg-teal-300 transition-all">▶ เปิดพร้อมจับเวลา</button>
+            <button id="btnCancelCountdown" onclick="cancelCountdown()" class="text-sm font-bold px-5 py-2.5 rounded-xl bg-slate-500/15 text-slate-400 border border-slate-500/30 hover:bg-slate-500/25 transition-all">ยกเลิก</button>
+          </div>
+        </div>
+
+        <div id="countdownRunning" class="hidden">
+          <div class="text-center py-2">
+            <div id="countdownDisplay" class="text-4xl font-bold text-sky-300 tabular-nums">15:00</div>
+            <div class="text-[11px] text-slate-500 mt-1">วาล์วเปิดอยู่ · ปิดอัตโนมัติเมื่อหมดเวลา</div>
+            <div class="mt-3 h-2 rounded-full overflow-hidden" style="background: rgba(148,163,184,0.2);">
+              <div id="countdownProgress" class="h-full rounded-full transition-all duration-1000" style="width:100%; background: linear-gradient(90deg,#38bdf8,#2dd4bf);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SCHEDULE SETUP CARD ================= -->
+    <section class="glass rounded-2xl p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="font-bold text-white flex items-center gap-2"><span>⏰</span> ตั้งเวลาอัตโนมัติ</h2>
+        <span class="badge text-teal-300" style="background: rgba(45,212,191,0.15); border: 1px solid rgba(45,212,191,0.35);">Smart Schedule</span>
+      </div>
+      <p class="text-[11px] text-slate-500 mb-2">ตั้งเวลาเปิด-ปิดวาล์ว เลือกวันทำงาน และเปิดใช้งานแต่ละตารางได้อิสระ</p>
+
+      <div id="nextScheduleBanner" class="glass-inset rounded-xl px-4 py-2 mb-4 flex items-center gap-2 text-sm">
+        <span>🔮</span>
+        <span id="nextScheduleText" class="text-slate-300">กำลังคำนวณกำหนดการถัดไป...</span>
+      </div>
+
+      <div id="scheduleList" class="flex flex-col gap-3">
+        <!-- Schedules rendered by JS -->
+      </div>
+    </section>
+
+    <!-- ================= FOOTER ================= -->
+    <footer class="mt-6 text-center text-[11px] text-slate-600">
+      Smart Water Valve Controller v2.0 • Real-time (WebSocket / REST + Mock) • รองรับ Android WebView Bridge
+    </footer>
+  </div>
+
+  <!-- =================================================================== -->
+  <!--                           JAVASCRIPT                                -->
+  <!-- =================================================================== -->
+  <script>
+    'use strict';
+
+    /* ===================================================================
+     * 1) ANDROID BRIDGE (Kotlin WebView)
+     *    - ตรวจสอบ window.AndroidBridge ก่อนเรียกทุกครั้ง
+     *    - บนเบราว์เซอร์ทั่วไปจะทำงานได้ปกติ (no-op / fallback)
+     * =================================================================== */
+    const Bridge = {
+      isAndroid() {
+        return typeof window.AndroidBridge !== 'undefined' && window.AndroidBridge !== null;
+      },
+      showToast(message) {
+        if (this.isAndroid()) {
+          try { window.AndroidBridge.showToast(String(message)); } catch (e) { /* ignore */ }
+        }
+        UI.showToast(String(message));
+      },
+      triggerVibration(durationMs) {
+        if (this.isAndroid()) {
+          try { window.AndroidBridge.triggerVibration(Number(durationMs) || 50); } catch (e) { /* ignore */ }
+        } else if (navigator.vibrate) {
+          try { navigator.vibrate(Number(durationMs) || 50); } catch (e) { /* ignore */ }
+        }
+      },
+      sendCommand(payload) {
+        if (this.isAndroid()) {
+          try { window.AndroidBridge.sendCommand(JSON.stringify(payload)); } catch (e) { /* ignore */ }
+        }
+      }
+    };
+
+    /* ===================================================================
+     * 2) CONFIG + STATE
+     * =================================================================== */
+    const Config = {
+      wsUrl: 'ws://192.168.4.1:81/ws',
+      apiUrl: 'http://192.168.4.1/api/status',
+      apiPostUrl: 'http://192.168.4.1/api/command',
+      wsEnabled: true,
+      mockEnabled: true,
+      mockInterval: 2000,
+      reconnectBaseDelay: 1000,
+      reconnectMaxDelay: 15000
+    };
+
+    const DAYS_TH = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
+    const DAYS_FULL = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
+
+    const State = {
+      espOnline: false,
+      connType: 'none',        // 'ws' | 'rest' | 'mock'
+      mode: 'manual',          // 'auto' | 'manual'
+      valveOn: false,
+      flow: 0,                 // L/min
+      countdown: {
+        active: false,
+        totalSeconds: 0,
+        remainingSeconds: 0,
+        timerId: null
+      },
+      schedules: [],
+      nextSchedule: null
+    };
+
+    /* ===================================================================
+     * 3) UI HELPERS
+     * =================================================================== */
+    const UI = {
+      toastTimer: null,
+      showToast(message, duration = 2500) {
+        const el = document.getElementById('toast');
+        el.textContent = message;
+        el.classList.add('show');
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+      },
+
+      updateClock() {
+        const now = new Date();
+        const timeEl = document.getElementById('currentTime');
+        const dateEl = document.getElementById('currentDate');
+        const pad = (n) => String(n).padStart(2, '0');
+        timeEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+        const dayName = DAYS_TH[now.getDay() === 0 ? 6 : now.getDay() - 1];
+        dateEl.textContent = dayName + ' ' + pad(now.getDate()) + '/' + pad(now.getMonth() + 1) + '/' + now.getFullYear();
+      },
+
+      renderModeButtons() {
+        const autoBtn = document.getElementById('btnAuto');
+        const manualBtn = document.getElementById('btnManual');
+        const isAuto = State.mode === 'auto';
+        autoBtn.className = 'px-3 py-1 rounded-full text-[11px] font-bold transition-all ' + (isAuto
+          ? 'bg-teal-400 text-slate-900 shadow-lg glow-teal'
+          : 'text-slate-400');
+        manualBtn.className = 'px-3 py-1 rounded-full text-[11px] font-bold transition-all ' + (!isAuto
+          ? 'bg-sky-400 text-slate-900 shadow-lg glow-blue'
+          : 'text-slate-400');
+
+        const hint = document.getElementById('modeHint');
+        if (isAuto) {
+          hint.innerHTML = '🔄 <span class="font-bold text-teal-300">โหมดอัตโนมัติ</span>';
+        } else {
+          hint.innerHTML = '✋ <span class="font-bold text-sky-300">โหมดแมนนวล</span>';
+        }
+      },
+
+      updateEspStatus() {
+        const dot = document.getElementById('espDot');
+        const statusText = document.getElementById('espStatusText');
+        const detail = document.getElementById('espStatusDetail');
+        const card = document.getElementById('espStatusCard');
+        if (State.espOnline) {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-teal-400 pulse-dot';
+          statusText.textContent = 'ESP32 • ออนไลน์';
+          statusText.className = 'text-xs font-bold text-teal-300';
+          detail.textContent = State.connType === 'ws' ? 'WebSocket เชื่อมต่อแล้ว' : 'REST เชื่อมต่อแล้ว';
+          card.style.borderColor = 'rgba(45,212,191,0.4)';
+        } else {
+          dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+          statusText.textContent = 'ESP32 • ออฟไลน์';
+          statusText.className = 'text-xs font-bold text-slate-400';
+          detail.textContent = State.connType === 'mock' ? 'ใช้ข้อมูลจำลอง (Mock)' : 'กำลังเชื่อมต่อ...';
+          card.style.borderColor = 'rgba(148,163,184,0.25)';
+        }
+      },
+
+      updateValveUI() {
+        const icon = document.getElementById('valveIcon');
+        const iconHeader = document.getElementById('valveIconHeader');
+        const statusText = document.getElementById('valveStatusText');
+        const statusSub = document.getElementById('valveStatusSub');
+        const badge = document.getElementById('valveStateBadge');
+        const flowLine = document.getElementById('flowLine');
+        const flowValue = document.getElementById('flowValue');
+        const toggle = document.getElementById('manualValveToggle');
+        const manualStatus = document.getElementById('manualValveStatus');
+
+        if (State.valveOn) {
+          icon.textContent = '💦';
+          icon.style.background = 'linear-gradient(135deg, rgba(45,212,191,0.35), rgba(56,189,248,0.35))';
+          icon.style.border = '1px solid rgba(45,212,191,0.6)';
+          icon.className = 'w-16 h-16 rounded-2xl flex items-center justify-center text-4xl valve-icon-wrap on transition-all';
+          iconHeader.className = 'w-11 h-11 rounded-xl flex items-center justify-center text-2xl valve-icon-wrap on';
+          statusText.textContent = 'วาล์วเปิดอยู่';
+          statusText.className = 'mt-2 text-sm font-bold text-teal-300';
+          statusSub.textContent = 'กำลังปล่อยน้ำ...';
+          badge.textContent = 'วาล์วเปิด';
+          badge.style.background = 'rgba(45,212,191,0.2)';
+          badge.style.border = '1px solid rgba(45,212,191,0.5)';
+          badge.style.color = '#5eead4';
+          flowLine.className = 'flow-line on mb-2';
+          flowValue.textContent = State.flow.toFixed(1);
+          manualStatus.textContent = 'วาล์วเปิดอยู่ · ปล่อยน้ำ';
+        } else {
+          icon.textContent = '🚱';
+          icon.style.background = 'rgba(148,163,184,0.15)';
+          icon.style.border = '1px solid rgba(148,163,184,0.3)';
+          icon.className = 'w-16 h-16 rounded-2xl flex items-center justify-center text-4xl valve-icon-wrap transition-all';
+          iconHeader.className = 'w-11 h-11 rounded-xl flex items-center justify-center text-2xl valve-icon-wrap';
+          statusText.textContent = 'วาล์วปิดอยู่';
+          statusText.className = 'mt-2 text-sm font-bold text-slate-400';
+          statusSub.textContent = 'ไม่มีการปล่อยน้ำ';
+          badge.textContent = 'วาล์วปิด';
+          badge.style.background = 'rgba(100,116,139,0.2)';
+          badge.style.border = '1px solid rgba(148,163,184,0.35)';
+          badge.style.color = '#94a3b8';
+          flowLine.className = 'flow-line mb-2';
+          flowValue.textContent = '0.0';
+          manualStatus.textContent = 'วาล์วปิดอยู่ · พร้อมใช้งาน';
+        }
+
+        toggle.checked = State.valveOn;
+        UI.updateValveTimerText();
+      },
+
+      updateValveTimerText() {
+        const timerText = document.getElementById('valveTimerText');
+        const timerSub = document.getElementById('valveTimerSub');
+        if (State.countdown.active) {
+          timerText.textContent = formatCountdown(State.countdown.remainingSeconds);
+          timerSub.textContent = 'นับถอยหลังเพื่อปิดวาล์ว';
+          timerText.className = 'text-xl font-bold text-sky-300 tabular-nums';
+        } else if (State.nextSchedule) {
+          timerText.textContent = State.nextSchedule.shortLabel;
+          timerSub.textContent = State.nextSchedule.fullLabel;
+          timerText.className = 'text-xl font-bold text-teal-300 tabular-nums';
+        } else {
+          timerText.textContent = '--:--';
+          timerSub.textContent = 'ยังไม่มีกำหนดการถัดไป';
+          timerText.className = 'text-xl font-bold text-white tabular-nums';
+        }
+      },
+
+      updateCountdownForm() {
+        const form = document.getElementById('countdownForm');
+        const running = document.getElementById('countdownRunning');
+        const display = document.getElementById('countdownDisplay');
+        const progress = document.getElementById('countdownProgress');
+
+        if (State.countdown.active) {
+          form.classList.add('hidden');
+          running.classList.remove('hidden');
+          display.textContent = formatCountdown(State.countdown.remainingSeconds);
+          const pct = State.countdown.totalSeconds > 0
+            ? (State.countdown.remainingSeconds / State.countdown.totalSeconds) * 100
+            : 0;
+          progress.style.width = Math.max(0, Math.min(100, pct)) + '%';
+        } else {
+          form.classList.remove('hidden');
+          running.classList.add('hidden');
+        }
+      },
+
+      updateSchedulesUI() {
+        renderSchedules();
+        updateNextSchedule();
+        UI.updateValveTimerText();
+      }
+    };
+
+    /* ===================================================================
+     * 4) FORMAT HELPERS
+     * =================================================================== */
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+    function pad2(n) {
+      return String(n).padStart(2, '0');
+    }
+    function formatCountdown(seconds) {
+      if (!seconds || seconds <= 0) return '--:--';
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      return h > 0 ? pad2(h) + ':' + pad2(m) + ':' + pad2(s) : pad2(m) + ':' + pad2(s);
+    }
+
+    /* ===================================================================
+     * 5) VALVE CONTROL
+     * =================================================================== */
+    function setValveState(on) {
+      if (State.valveOn === on) return;
+      State.valveOn = on;
+      if (on) {
+        State.flow = 8 + Math.random() * 4;
+      } else {
+        State.flow = 0;
+        cancelCountdown();
+      }
+      UI.updateValveUI();
+      sendCommandToEsp({ type: 'valve', action: on ? 'on' : 'off' });
+    }
+
+    function toggleManualValve() {
+      const toggle = document.getElementById('manualValveToggle');
+      if (State.mode === 'auto') {
+        toggle.checked = State.valveOn;
+        Bridge.showToast('⚠️ กรุณาสลับเป็นโหมดแมนนวลก่อนควบคุมวาล์ว');
+        Bridge.triggerVibration(50);
+        return;
+      }
+      setValveState(toggle.checked);
+      Bridge.triggerVibration(30);
+      Bridge.showToast(State.valveOn ? '💦 เปิดวาล์วน้ำ' : '🚱 ปิดวาล์วน้ำ');
+    }
+
+    /* ===================================================================
+     * 6) COUNTDOWN (เปิดวาล์วแล้วปิดอัตโนมัติ)
+     * =================================================================== */
+    function quickCountdown(minutes) {
+      document.getElementById('countdownMinutes').value = minutes;
+      startCountdown();
+    }
+
+    function startCountdown() {
+      if (State.mode === 'auto') {
+        Bridge.showToast('⚠️ กรุณาสลับเป็นโหมดแมนนวลก่อนตั้งเวลา');
+        Bridge.triggerVibration(50);
+        return;
+      }
+      const input = document.getElementById('countdownMinutes');
+      const minutes = parseInt(input.value, 10);
+      if (!minutes || minutes <= 0 || minutes > 1440) {
+        Bridge.showToast('❌ กรุณากรอกจำนวนนาทีให้ถูกต้อง (1-1440)');
+        Bridge.triggerVibration(60);
+        return;
+      }
+      if (State.countdown.timerId) clearInterval(State.countdown.timerId);
+
+      State.countdown.active = true;
+      State.countdown.totalSeconds = minutes * 60;
+      State.countdown.remainingSeconds = minutes * 60;
+      State.countdown.timerId = setInterval(tickCountdown, 1000);
+
+      if (!State.valveOn) setValveState(true);
+
+      Bridge.showToast('⏱️ เปิดวาล์วและจับเวลา ' + minutes + ' นาที');
+      Bridge.triggerVibration(30);
+      UI.updateCountdownForm();
+      UI.updateValveUI();
+    }
+
+    function tickCountdown() {
+      State.countdown.remainingSeconds--;
+      if (State.countdown.remainingSeconds <= 0) {
+        clearInterval(State.countdown.timerId);
+        State.countdown.timerId = null;
+        State.countdown.active = false;
+        State.countdown.totalSeconds = 0;
+        State.countdown.remainingSeconds = 0;
+        setValveState(false);
+        Bridge.showToast('✅ หมดเวลา ปิดวาล์วน้ำอัตโนมัติ');
+        Bridge.triggerVibration(40);
+        UI.updateCountdownForm();
+        UI.updateValveUI();
+        return;
+      }
+      UI.updateCountdownForm();
+      UI.updateValveTimerText();
+    }
+
+    function cancelCountdown() {
+      if (!State.countdown.active) return;
+      if (State.countdown.timerId) {
+        clearInterval(State.countdown.timerId);
+        State.countdown.timerId = null;
+      }
+      State.countdown.active = false;
+      State.countdown.totalSeconds = 0;
+      State.countdown.remainingSeconds = 0;
+      Bridge.showToast('⏹️ ยกเลิกการจับเวลา');
+      Bridge.triggerVibration(20);
+      UI.updateCountdownForm();
+      UI.updateValveUI();
+    }
+
+    /* ===================================================================
+     * 7) SCHEDULE ENGINE (Auto Mode)
+     * =================================================================== */
+    function defaultSchedules() {
+      return [
+        { id: 1, name: 'รอบเช้า', start: '06:00', end: '06:30', days: [true, true, true, true, true, false, false], enabled: true },
+        { id: 2, name: 'รอบเย็น', start: '17:30', end: '18:00', days: [true, true, true, true, true, true, true], enabled: true },
+        { id: 3, name: 'รอบบ่าย', start: '12:00', end: '12:15', days: [false, false, true, true, true, false, false], enabled: false }
+      ];
+    }
+
+    function minutesOfDay(hhmm) {
+      const parts = String(hhmm).split(':');
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+
+    function todayDayIndex() {
+      const d = new Date().getDay();
+      return d === 0 ? 6 : d - 1; // Mon=0 ... Sun=6
+    }
+
+    function scheduleActiveNow(sch) {
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      const startMin = minutesOfDay(sch.start);
+      const endMin = minutesOfDay(sch.end);
+      return sch.enabled && sch.days[todayDayIndex()] && nowMin >= startMin && nowMin < endMin;
+    }
+
+    function autoModeShouldOpen() {
+      if (State.mode !== 'auto') return false;
+      return State.schedules.some(scheduleActiveNow);
+    }
+
+    function evaluateAutoMode() {
+      if (State.mode !== 'auto') return;
+      const shouldOpen = autoModeShouldOpen();
+      if (State.valveOn !== shouldOpen) {
+        setValveState(shouldOpen);
+        if (shouldOpen) {
+          Bridge.showToast('🔄 โหมดอัตโนมัติ: เปิดวาล์วตามตารางเวลา');
+        } else {
+          Bridge.showToast('🔄 โหมดอัตโนมัติ: ปิดวาล์ว (หมดเวลาตาราง)');
+        }
+        Bridge.triggerVibration(30);
+      }
+    }
+
+    function updateNextSchedule() {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      let next = null;
+
+      State.schedules.forEach((sch) => {
+        if (!sch.enabled) return;
+        const startMin = minutesOfDay(sch.start);
+
+        // หาเหตุการณ์ถัดไปภายใน 7 วัน
+        for (let offset = 0; offset < 7; offset++) {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+          const dayIdx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+          if (!sch.days[dayIdx]) continue;
+
+          const eventMin = offset === 0 && startMin <= nowMin ? null : startMin;
+          if (eventMin === null) continue;
+
+          const eventTime = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(eventMin / 60), eventMin % 60, 0);
+          if (eventTime > now && (!next || eventTime < next.time)) {
+            next = {
+              time: eventTime,
+              dayIndex: dayIdx,
+              sch: sch,
+              shortLabel: pad2(Math.floor(eventMin / 60)) + ':' + pad2(eventMin % 60),
+              fullLabel: sch.name + ' · ' + DAYS_FULL[dayIdx] + ' · ' + sch.start + '–' + sch.end
+            };
+          }
+        }
+      });
+
+      State.nextSchedule = next;
+
+      const el = document.getElementById('nextScheduleText');
+      if (next) {
+        el.textContent = 'กำหนดการถัดไป: ' + next.sch.name + ' (เปิด ' + next.shortLabel + ') · ' + DAYS_FULL[next.dayIndex];
+      } else {
+        el.textContent = 'ไม่มีกำหนดการที่เปิดใช้งาน';
+      }
+      UI.updateValveTimerText();
+    }
+
+    /* ===================================================================
+     * 8) RENDER: SCHEDULES
+     * =================================================================== */
+    function renderSchedules() {
+      const list = document.getElementById('scheduleList');
+      list.innerHTML = '';
+
+      if (State.schedules.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'glass-inset rounded-2xl p-4 text-center text-sm text-slate-500';
+        empty.textContent = 'ยังไม่มีตารางเวลา กดปุ่มด้านล่างเพื่อเพิ่ม';
+        list.appendChild(empty);
+      }
+
+      State.schedules.forEach((sch) => {
+        const slot = document.createElement('div');
+        const activeNow = scheduleActiveNow(sch);
+        slot.className = 'glass-inset rounded-2xl p-4 schedule-slot ' + (sch.enabled ? '' : 'disabled');
+        slot.id = 'scheduleSlot-' + sch.id;
+
+        let daysHtml = '';
+        for (let i = 0; i < 7; i++) {
+          daysHtml += '<span class="day-chip px-2 py-1 rounded-lg text-[11px] ' + (sch.days[i] ? 'active' : '') + '" onclick="toggleDay(' + sch.id + ', ' + i + ')">' + DAYS_TH[i] + '</span>';
+        }
+
+        slot.innerHTML = `
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center text-base ${sch.enabled ? (activeNow ? 'bg-teal-400/20' : 'bg-sky-400/20') : 'bg-slate-500/15'}">⏰</div>
+              <div>
+                <div class="text-sm font-bold text-white">${sch.name}</div>
+                <div class="text-[10px] ${activeNow ? 'text-teal-300 font-bold' : 'text-slate-500'}">${activeNow ? '● กำลังทำงานอยู่' : (sch.enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน')}</div>
+              </div>
+            </div>
+            <label class="switch switch-blue">
+              <input type="checkbox" id="scheduleToggle-${sch.id}" ${sch.enabled ? 'checked' : ''} onchange="toggleSchedule(${sch.id})" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-[10px] font-bold text-slate-500 block mb-1">⏱️ เวลาเปิด (Start)</label>
+              <input type="time" id="scheduleStart-${sch.id}" value="${sch.start}" onchange="updateScheduleTime(${sch.id})" />
+            </div>
+            <div>
+              <label class="text-[10px] font-bold text-slate-500 block mb-1">⏹️ เวลาปิด (End)</label>
+              <input type="time" id="scheduleEnd-${sch.id}" value="${sch.end}" onchange="updateScheduleTime(${sch.id})" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div class="flex items-center gap-1.5 flex-wrap">${daysHtml}</div>
+            <button onclick="deleteSchedule(${sch.id})" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 transition-all">🗑️ ลบ</button>
+          </div>
+        `;
+
+        list.appendChild(slot);
+      });
+
+      renderAddScheduleButton();
+    }
+
+    function renderAddScheduleButton() {
+      const list = document.getElementById('scheduleList');
+      const existing = document.getElementById('addScheduleBtn');
+      if (existing) existing.remove();
+
+      const btn = document.createElement('button');
+      btn.id = 'addScheduleBtn';
+      btn.onclick = addSchedule;
+      btn.className = 'mt-3 w-full rounded-2xl border-2 border-dashed border-slate-500/40 text-slate-400 py-3 text-sm font-bold hover:border-teal-400/60 hover:text-teal-300 transition-all';
+      btn.innerHTML = '➕ เพิ่มตารางเวลาใหม่';
+      list.appendChild(btn);
+    }
+
+    /* ===================================================================
+     * 9) SCHEDULE ACTIONS
+     * =================================================================== */
+    function findSchedule(id) {
+      return State.schedules.find((s) => s.id === id);
+    }
+
+    function toggleDay(scheduleId, dayIndex) {
+      const sch = findSchedule(scheduleId);
+      if (!sch) return;
+      sch.days[dayIndex] = !sch.days[dayIndex];
+      Bridge.triggerVibration(20);
+      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, days: sch.days });
+      renderSchedules();
+      updateNextSchedule();
+      evaluateAutoMode();
+    }
+
+    function updateScheduleTime(scheduleId) {
+      const sch = findSchedule(scheduleId);
+      if (!sch) return;
+      const startEl = document.getElementById('scheduleStart-' + scheduleId);
+      const endEl = document.getElementById('scheduleEnd-' + scheduleId);
+      sch.start = startEl.value || sch.start;
+      sch.end = endEl.value || sch.end;
+      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, start: sch.start, end: sch.end });
+      Bridge.showToast('✅ อัปเดตเวลา ' + sch.name + ': ' + sch.start + ' - ' + sch.end);
+      Bridge.triggerVibration(20);
+      updateNextSchedule();
+      evaluateAutoMode();
+    }
+
+    function toggleSchedule(scheduleId) {
+      const sch = findSchedule(scheduleId);
+      if (!sch) return;
+      sch.enabled = !sch.enabled;
+      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, enabled: sch.enabled });
+      Bridge.showToast(sch.enabled ? '▶️ เปิดใช้งาน ' + sch.name : '⏸️ ปิดใช้งาน ' + sch.name);
+      Bridge.triggerVibration(30);
+      renderSchedules();
+      updateNextSchedule();
+      evaluateAutoMode();
+    }
+
+    function deleteSchedule(scheduleId) {
+      const sch = findSchedule(scheduleId);
+      if (!sch) return;
+      State.schedules = State.schedules.filter((s) => s.id !== scheduleId);
+      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, action: 'delete' });
+      Bridge.showToast('🗑️ ลบ ' + sch.name + ' แล้ว');
+      Bridge.triggerVibration(40);
+      renderSchedules();
+      updateNextSchedule();
+      evaluateAutoMode();
+    }
+
+    function addSchedule() {
+      const nextId = State.schedules.reduce((max, s) => Math.max(max, s.id), 0) + 1;
+      State.schedules.push({
+        id: nextId,
+        name: 'กำหนดเวลา ' + nextId,
+        start: '08:00',
+        end: '08:30',
+        days: [true, true, true, true, true, true, false],
+        enabled: true
+      });
+      sendCommandToEsp({ type: 'schedule', action: 'add', schedule: State.schedules[State.schedules.length - 1] });
+      Bridge.showToast('➕ เพิ่มตารางเวลาใหม่แล้ว');
+      Bridge.triggerVibration(30);
+      renderSchedules();
+      updateNextSchedule();
+      evaluateAutoMode();
+    }
+
+    /* ===================================================================
+     * 10) MODE SWITCHING
+     * =================================================================== */
+    function setMode(mode) {
+      State.mode = mode;
+      UI.renderModeButtons();
+      sendCommandToEsp({ type: 'mode', mode: mode });
+
+      const hint = document.getElementById('manualHint');
+      if (mode === 'manual') {
+        hint.textContent = '✋ โหมดแมนนวล - ควบคุมวาล์วได้';
+        Bridge.showToast('✋ สลับเป็นโหมดแมนนวล');
+      } else {
+        hint.textContent = '🔄 โหมดอัตโนมัติ - ควบคุมด้วยตารางเวลา';
+        Bridge.showToast('🔄 สลับเป็นโหมดอัตโนมัติ');
+      }
+      Bridge.triggerVibration(30);
+
+      // เมื่อสลับเป็น Auto ให้ประเมินตารางเวลาทันที
+      if (mode === 'auto') {
+        cancelCountdown();
+        evaluateAutoMode();
+      }
+      UI.updateValveUI();
+    }
+
+    /* ===================================================================
+     * 11) SENSOR / FLOW SIMULATION (Mock)
+     * =================================================================== */
+    function updateFlowSimulation() {
+      if (State.valveOn) {
+        State.flow = clamp(State.flow + (8 - State.flow) * 0.3 + (Math.random() - 0.5) * 0.6, 5, 14);
+      } else {
+        State.flow = clamp(State.flow * 0.5, 0, 0.1);
+      }
+      document.getElementById('flowValue').textContent = State.flow.toFixed(1);
+    }
+
+    /* ===================================================================
+     * 12) COMMUNICATION LAYER
+     *     - WebSocket (Real-time) พร้อม Auto-reconnect
+     *     - REST API (fetch) เป็นช่องทางสำรอง
+     *     - Mock Data เมื่อไม่สามารถเชื่อมต่อ ESP32 ได้
+     * =================================================================== */
+    let socket = null;
+    let reconnectAttempts = 0;
+    let mockTimer = null;
+    let autoTimer = null;
+
+    function initConnection() {
+      if (Config.wsEnabled && 'WebSocket' in window) {
+        connectWebSocket();
+      } else {
+        fallbackToMock();
+      }
+    }
+
+    function connectWebSocket() {
+      try {
+        socket = new WebSocket(Config.wsUrl);
+      } catch (e) {
+        console.warn('WebSocket error:', e);
+        fallbackToMock();
+        return;
+      }
+
+      socket.onopen = () => {
+        State.espOnline = true;
+        State.connType = 'ws';
+        reconnectAttempts = 0;
+        UI.updateEspStatus();
+        sendCommandToEsp({ type: 'hello', client: 'webui' });
+        Bridge.showToast('🔌 เชื่อมต่อ ESP32 สำเร็จ (WebSocket)');
+        Bridge.triggerVibration(30);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleEspMessage(data);
+        } catch (e) {
+          console.warn('Invalid WS message:', event.data);
+        }
+      };
+
+      socket.onerror = () => {
+        console.warn('WebSocket error');
+      };
+
+      socket.onclose = () => {
+        State.espOnline = false;
+        UI.updateEspStatus();
+        reconnectAttempts++;
+        const delay = Math.min(Config.reconnectBaseDelay * Math.pow(2, reconnectAttempts), Config.reconnectMaxDelay);
+        console.log('WebSocket ปิดการเชื่อมต่อ, พยายามใหม่ใน ' + delay + 'ms (ครั้งที่ ' + reconnectAttempts + ')');
+        setTimeout(connectWebSocket, delay);
+      };
+    }
+
+    function handleEspMessage(data) {
+      if (!data) return;
+
+      if (data.type === 'status') {
+        State.espOnline = data.online !== false;
+        if (data.mode) State.mode = data.mode;
+        if (typeof data.valve === 'boolean') State.valveOn = data.valve;
+        if (data.schedules && Array.isArray(data.schedules)) State.schedules = data.schedules;
+        if (typeof data.flow === 'number') State.flow = data.flow;
+        UI.renderModeButtons();
+        UI.updateEspStatus();
+        UI.updateValveUI();
+        UI.updateSchedulesUI();
+      }
+
+      if (data.type === 'valve') {
+        const on = data.action === 'on' || data.on === true;
+        if (State.valveOn !== on) {
+          State.valveOn = on;
+          if (!on) cancelCountdown();
+          UI.updateValveUI();
+        }
+      }
+
+      if (data.type === 'mode') {
+        State.mode = data.mode === 'auto' ? 'auto' : 'manual';
+        UI.renderModeButtons();
+        UI.updateValveUI();
+      }
+
+      if (data.type === 'ack') {
+        Bridge.showToast('📡 ESP32: ' + (data.message || 'คำสั่งสำเร็จ'));
+      }
+    }
+
+    function sendCommandToEsp(payload) {
+      // ส่งคำสั่งไปยัง Native Android (ถ้ามี)
+      Bridge.sendCommand(payload);
+
+      const json = JSON.stringify(payload);
+
+      // WebSocket
+      if (State.espOnline && socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(json);
+        return;
+      }
+
+      // REST API สำรอง (fire-and-forget)
+      fetch(Config.apiPostUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: json
+      }).then((res) => res.json())
+        .then((data) => handleEspMessage(data))
+        .catch(() => {
+          /* ถ้า offline ให้ใช้ Mock ตามปกติ */
+        });
+    }
+
+    function fallbackToMock() {
+      State.espOnline = false;
+      State.connType = 'mock';
+      UI.updateEspStatus();
+
+      if (mockTimer) clearInterval(mockTimer);
+      mockTimer = setInterval(updateFlowSimulation, Config.mockInterval);
+      console.log('โหมดจำลอง (Mock Data) ทำงาน - ระบบพร้อมใช้งาน');
+    }
+
+    /* ===================================================================
+     * 13) RESET DEMO DATA
+     * =================================================================== */
+    function resetDemoData() {
+      clearInterval(State.countdown.timerId);
+      State.countdown.timerId = null;
+      State.countdown.active = false;
+      State.valveOn = false;
+      State.flow = 0;
+      State.mode = 'manual';
+      State.schedules = defaultSchedules();
+      UI.renderModeButtons();
+      UI.updateValveUI();
+      UI.updateCountdownForm();
+      UI.updateSchedulesUI();
+      sendCommandToEsp({ type: 'reset' });
+      Bridge.showToast('🔄 รีเซ็ตข้อมูลเรียบร้อย');
+      Bridge.triggerVibration(40);
+    }
+
+    /* ===================================================================
+     * 14) INITIALIZE
+     * =================================================================== */
+    function init() {
+      // ค่าเริ่มต้น
+      State.schedules = defaultSchedules();
+
+      UI.updateClock();
+      setInterval(UI.updateClock, 1000);
+      UI.renderModeButtons();
+      UI.updateEspStatus();
+      UI.updateValveUI();
+      UI.updateCountdownForm();
+      UI.updateSchedulesUI();
+
+      initConnection();
+      fallbackToMock(); // เริ่ม mock ทันที (ถ้า WS เชื่อมต่อได้ก็จะถูกแทนที่)
+
+      // ตรวจสอบตารางเวลาอัตโนมัติทุกนาที
+      autoTimer = setInterval(() => {
+        evaluateAutoMode();
+        updateNextSchedule();
+      }, 30000);
+
+      Bridge.showToast('💧 ระบบพร้อมใช้งาน', 1800);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
