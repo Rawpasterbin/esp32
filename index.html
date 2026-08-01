@@ -433,8 +433,11 @@
         }
       },
 
-      // ขอสถานะล่าสุดจาก ESP32 ผ่าน MQTT
+      // ขอสถานะล่าสุดจาก ESP32 ผ่าน MQTT (กันสแปม: ขอได้ไม่ถี่กว่า 2 วินาที)
       requestStatus() {
+        const now = Date.now();
+        if (this._lastStatusReq && now - this._lastStatusReq < 2000) return;
+        this._lastStatusReq = now;
         this.triggerAction('getStatus');
       },
 
@@ -534,8 +537,10 @@
       const msg = normalizePayload(json);
       if (msg && msg.sent === true) {
         console.log('Command sent:', msg.command, '->', msg.topic);
-        // ขอสถานะล่าสุดกลับมา เพื่อให้ UI ตรงกับ ESP32
-        Bridge.requestStatus();
+        // ขอสถานะกลับมาเฉพาะตอนสั่งคำสั่งจริง (ไม่รวม getStatus เพื่อกัน loop สแปม MQTT)
+        if (msg.command !== 'getStatus') {
+          Bridge.requestStatus();
+        }
       }
     };
 
