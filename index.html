@@ -33,8 +33,18 @@
                   linear-gradient(180deg, #0f172a 0%, #020617 100%);
       min-height: 100vh;
       color: #e2e8f0;
-	  padding-top: 45px;
-	  padding-bottom: 30px
+      padding-left: 1rem;
+      padding-right: 1rem;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 1.5rem);
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
+    }
+    @media (min-width: 640px) {
+      body {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 2rem);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
+      }
     }
     .glass {
       background: rgba(255, 255, 255, 0.06);
@@ -88,30 +98,7 @@
     .switch-blue input:checked + .slider { background: #38bdf8; border-color: #38bdf8; }
     .switch-blue input:checked + .slider::before { box-shadow: 0 0 12px rgba(56, 189, 248, 0.9); }
 
-    /* ===== Water Flow Animation (valve open) ===== */
-    .flow-line {
-      position: relative;
-      overflow: hidden;
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(100, 116, 139, 0.25);
-      border: 1px solid rgba(148, 163, 184, 0.25);
-    }
-    .flow-line .flow {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent, #2dd4bf, #38bdf8, transparent);
-      background-size: 200% 100%;
-      animation: flow 1.1s linear infinite;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-    .flow-line.on .flow { opacity: 1; }
-    @keyframes flow {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
+    /* ===== Valve icon animation (valve open) ===== */
     .valve-icon-wrap {
       transition: all 0.4s ease;
     }
@@ -205,7 +192,7 @@
     ::-webkit-scrollbar-track { background: transparent; }
   </style>
 </head>
-<body class="p-4 sm:p-6 pb-24">
+<body>
 
   <!-- Toast -->
   <div id="toast" class="toast"></div>
@@ -266,14 +253,14 @@
           <div id="valveStatusSub" class="text-[10px] text-slate-500">ไม่มีการปล่อยน้ำ</div>
         </div>
 
-        <!-- Water flow indicator -->
+        <!-- Local temperature -->
         <div class="glass-inset rounded-2xl p-4 flex flex-col justify-center">
-          <div class="text-[11px] text-slate-400 mb-2">การไหลของน้ำ</div>
-          <div id="flowLine" class="flow-line mb-2"><div class="flow"></div></div>
+          <div class="text-[11px] text-slate-400 mb-2">🌡️ อุณหภูมิพื้นที่ของคุณ</div>
           <div class="flex items-center justify-between">
-            <span id="flowValue" class="text-xl font-bold text-white tabular-nums">0.0</span>
-            <span class="text-[11px] text-slate-500">L/min</span>
+            <span id="tempValue" class="text-xl font-bold text-white tabular-nums">--.-</span>
+            <span class="text-[11px] text-slate-500">°C</span>
           </div>
+          <div id="tempLocation" class="text-[10px] text-slate-500 mt-1">กำลังระบุตำแหน่ง...</div>
         </div>
 
         <!-- Countdown / next schedule -->
@@ -381,32 +368,190 @@
     'use strict';
 
     /* ===================================================================
-     * 1) ANDROID BRIDGE (Kotlin WebView)
-     *    - ตรวจสอบ window.AndroidBridge ก่อนเรียกทุกครั้ง
-     *    - บนเบราว์เซอร์ทั่วไปจะทำงานได้ปกติ (no-op / fallback)
+     * 1) ANDROID BRIDGE (Kotlin WebView + MQTT)
+     *    - window.AndroidBridge คือ WebAppInterface.kt
+     *      * triggerAction(command: String)   -> ส่งคำสั่ง MQTT ไป ESP32
+     *      * sendNotification(title, message) -> ส่งแจ้งเตือน
+     *      * getMqttStatus(): String          -> {"connected":true|false}
+     *    - Kotlin เรียกกลับมาทาง JS function เหล่านี้:
+     *      * onMqttConnected / onMqttDisconnected / onMqttError
+     *      * onValveStatus / onDeviceStatus / onMqttMessage
+     *      * onCommandResult / onCommandError
+     *      * onNotificationResult / onNotificationError
+     *    - บนเบราว์เซอร์ทั่วไป: isAndroid() == false -> ใช้ WS/REST/Mock ตามเดิม
      * =================================================================== */
     const Bridge = {
       isAndroid() {
         return typeof window.AndroidBridge !== 'undefined' && window.AndroidBridge !== null;
       },
-      showToast(message) {
-        if (this.isAndroid()) {
-          try { window.AndroidBridge.showToast(String(message)); } catch (e) { /* ignore */ }
+
+      // ส่งคำสั่งตรงๆ (command string ที่ CommandProcessor รองรับ)
+      // เช่น openValve / closeValve / toggleValve / getStatus / reboot
+      triggerAction(command) {
+        if (!this.isAndroid()) return false;
+        try {
+          window.AndroidBridge.triggerAction(String(command));
+          return true;
+        } catch (e) {
+          console.warn('Bridge.triggerAction error:', e);
+          return false;
         }
+      },
+
+      // แปลง payload ที่ UI ส่งมา -> command string แล้วส่งเข้าบริดจ์
+      sendCommand(payload) {
+        if (!this.isAndroid()) return false;
+        if (!payload || typeof payload !== 'object') return false;
+
+        const cmd = this.mapCommand(payload);
+        if (cmd) return this.triggerAction(cmd);
+
+        // payload ซับซ้อน (mode/schedule/reset) -> ส่ง JSON ทั้งก้อนผ่าน triggerAction
+        // ฝั่ง Kotlin ตรวจเจอว่าเป็น JSON แล้วเลือก topic ให้เอง
+        try {
+          return this.triggerAction(JSON.stringify(payload));
+        } catch (e) {
+          return false;
+        }
+      },
+
+      // payload -> command string ตาม CommandProcessor.kt
+      mapCommand(payload) {
+        switch (payload.type) {
+          case 'valve':
+            if (payload.action === 'on' || payload.on === true) return 'openValve';
+            if (payload.action === 'off' || payload.on === false) return 'closeValve';
+            if (payload.action === 'toggle') return 'toggleValve';
+            return null;
+          case 'status':
+          case 'hello':
+            return 'getStatus';
+          case 'reboot':
+            return 'reboot';
+          default:
+            return null;
+        }
+      },
+
+      // ขอสถานะล่าสุดจาก ESP32 ผ่าน MQTT
+      requestStatus() {
+        this.triggerAction('getStatus');
+      },
+
+      // แจ้งเตือนผ่าน Kotlin (publish ไป MQTT topic myhouse/notification)
+      sendNotification(title, message) {
+        if (!this.isAndroid()) return;
+        try {
+          window.AndroidBridge.sendNotification(String(title), String(message));
+        } catch (e) { /* ignore */ }
+      },
+
+      // ตรวจสอบว่า MQTT ฝั่ง Android เชื่อมต่ออยู่ไหม
+      getMqttStatus() {
+        if (!this.isAndroid()) return null;
+        try {
+          const raw = window.AndroidBridge.getMqttStatus();
+          return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+          return null;
+        }
+      },
+
+      showToast(message) {
         UI.showToast(String(message));
       },
+
       triggerVibration(durationMs) {
-        if (this.isAndroid()) {
-          try { window.AndroidBridge.triggerVibration(Number(durationMs) || 50); } catch (e) { /* ignore */ }
-        } else if (navigator.vibrate) {
+        if (navigator.vibrate) {
           try { navigator.vibrate(Number(durationMs) || 50); } catch (e) { /* ignore */ }
         }
-      },
-      sendCommand(payload) {
-        if (this.isAndroid()) {
-          try { window.AndroidBridge.sendCommand(JSON.stringify(payload)); } catch (e) { /* ignore */ }
-        }
       }
+    };
+
+    /* ===================================================================
+     * 1.5) MQTT BRIDGE CALLBACKS
+     *      ฟังก์ชันเหล่านี้ Kotlin เรียกกลับมาเมื่อมีข้อความ MQTT เข้ามา
+     * =================================================================== */
+    function normalizePayload(data) {
+      if (data == null) return null;
+      if (typeof data === 'object') return data;
+      try { return JSON.parse(String(data)); } catch (e) { return null; }
+    }
+
+    // ESP32 ส่งสถานะวาล์วมาที่ topic "myhouse/valve/status"
+    window.onValveStatus = function (data) {
+      const msg = normalizePayload(data);
+      if (!msg) return;
+      State.espOnline = true;
+      State.connType = 'mqtt';
+      handleEspMessage({
+        type: 'status',
+        online: true,
+        valve: typeof msg.valve === 'boolean' ? msg.valve
+             : msg.open === true || msg.state === 'open' || msg.valve === 'on',
+        mode: msg.mode,
+        temperature: typeof msg.temperature === 'number' ? msg.temperature : State.temperature,
+        schedules: Array.isArray(msg.schedules) ? msg.schedules : State.schedules
+      });
+    };
+
+    // สถานะจากอุปกรณ์อื่น (myhouse/+/status)
+    window.onDeviceStatus = function (json) {
+      const msg = normalizePayload(json);
+      if (!msg) return;
+      console.log('Device status:', msg.topic, msg.data);
+      handleEspMessage(normalizePayload(msg.data));
+    };
+
+    // ข้อความ MQTT ทั่วไป
+    window.onMqttMessage = function (json) {
+      const msg = normalizePayload(json);
+      if (msg) console.log('MQTT message:', msg.topic, msg.payload);
+    };
+
+    window.onMqttConnected = function (json) {
+      State.espOnline = true;
+      State.connType = 'mqtt';
+      UI.updateEspStatus();
+      UI.showToast('🔌 เชื่อมต่อ MQTT (HiveMQ) สำเร็จ', 1800);
+      Bridge.requestStatus();
+    };
+
+    window.onMqttDisconnected = function (json) {
+      const msg = normalizePayload(json);
+      State.espOnline = false;
+      State.connType = 'none';
+      UI.updateEspStatus();
+      if (msg && msg.error) UI.showToast('⚠️ MQTT ตัดการเชื่อมต่อ: ' + msg.error);
+    };
+
+    window.onMqttError = function (json) {
+      const msg = normalizePayload(json);
+      if (msg && msg.error) UI.showToast('❌ MQTT error: ' + msg.error);
+    };
+
+    window.onCommandResult = function (json) {
+      const msg = normalizePayload(json);
+      if (msg && msg.sent === true) {
+        console.log('Command sent:', msg.command, '->', msg.topic);
+        // ขอสถานะล่าสุดกลับมา เพื่อให้ UI ตรงกับ ESP32
+        Bridge.requestStatus();
+      }
+    };
+
+    window.onCommandError = function (json) {
+      const msg = normalizePayload(json);
+      UI.showToast('❌ ' + (msg && msg.error ? msg.error : 'คำสั่งไม่สำเร็จ'));
+    };
+
+    window.onNotificationResult = function (json) {
+      const msg = normalizePayload(json);
+      if (msg && msg.sent) UI.showToast('✅ ' + (msg.title || 'แจ้งเตือนสำเร็จ'));
+    };
+
+    window.onNotificationError = function (json) {
+      const msg = normalizePayload(json);
+      UI.showToast('❌ ' + (msg && msg.error ? msg.error : 'ส่งแจ้งเตือนไม่สำเร็จ'));
     };
 
     /* ===================================================================
@@ -428,10 +573,12 @@
 
     const State = {
       espOnline: false,
-      connType: 'none',        // 'ws' | 'rest' | 'mock'
+      connType: 'none',        // 'ws' | 'rest' | 'mqtt' | 'mock'
       mode: 'manual',          // 'auto' | 'manual'
       valveOn: false,
-      flow: 0,                 // L/min
+      temperature: null,       // °C จากพื้นที่ผู้ใช้ (Geolocation)
+      tempLocation: 'กำลังระบุตำแหน่ง...',
+      tempSource: 'mock',      // 'live' | 'mock'
       countdown: {
         active: false,
         totalSeconds: 0,
@@ -493,7 +640,9 @@
           dot.className = 'w-2.5 h-2.5 rounded-full bg-teal-400 pulse-dot';
           statusText.textContent = 'ESP32 • ออนไลน์';
           statusText.className = 'text-xs font-bold text-teal-300';
-          detail.textContent = State.connType === 'ws' ? 'WebSocket เชื่อมต่อแล้ว' : 'REST เชื่อมต่อแล้ว';
+          detail.textContent = State.connType === 'ws' ? 'WebSocket เชื่อมต่อแล้ว'
+            : State.connType === 'mqtt' ? 'MQTT (HiveMQ) เชื่อมต่อแล้ว'
+            : 'REST เชื่อมต่อแล้ว';
           card.style.borderColor = 'rgba(45,212,191,0.4)';
         } else {
           dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
@@ -510,8 +659,6 @@
         const statusText = document.getElementById('valveStatusText');
         const statusSub = document.getElementById('valveStatusSub');
         const badge = document.getElementById('valveStateBadge');
-        const flowLine = document.getElementById('flowLine');
-        const flowValue = document.getElementById('flowValue');
         const toggle = document.getElementById('manualValveToggle');
         const manualStatus = document.getElementById('manualValveStatus');
 
@@ -528,8 +675,6 @@
           badge.style.background = 'rgba(45,212,191,0.2)';
           badge.style.border = '1px solid rgba(45,212,191,0.5)';
           badge.style.color = '#5eead4';
-          flowLine.className = 'flow-line on mb-2';
-          flowValue.textContent = State.flow.toFixed(1);
           manualStatus.textContent = 'วาล์วเปิดอยู่ · ปล่อยน้ำ';
         } else {
           icon.textContent = '🚱';
@@ -544,8 +689,6 @@
           badge.style.background = 'rgba(100,116,139,0.2)';
           badge.style.border = '1px solid rgba(148,163,184,0.35)';
           badge.style.color = '#94a3b8';
-          flowLine.className = 'flow-line mb-2';
-          flowValue.textContent = '0.0';
           manualStatus.textContent = 'วาล์วปิดอยู่ · พร้อมใช้งาน';
         }
 
@@ -569,6 +712,14 @@
           timerSub.textContent = 'ยังไม่มีกำหนดการถัดไป';
           timerText.className = 'text-xl font-bold text-white tabular-nums';
         }
+      },
+
+      updateTemperatureUI() {
+        const tempEl = document.getElementById('tempValue');
+        const locEl = document.getElementById('tempLocation');
+        if (!tempEl || !locEl) return;
+        tempEl.textContent = State.temperature !== null ? State.temperature.toFixed(1) : '--.-';
+        locEl.textContent = (State.tempSource === 'live' ? '📍 ' : '🔎 ') + State.tempLocation;
       },
 
       updateCountdownForm() {
@@ -621,10 +772,7 @@
     function setValveState(on) {
       if (State.valveOn === on) return;
       State.valveOn = on;
-      if (on) {
-        State.flow = 8 + Math.random() * 4;
-      } else {
-        State.flow = 0;
+      if (!on) {
         cancelCountdown();
       }
       UI.updateValveUI();
@@ -978,15 +1126,70 @@
     }
 
     /* ===================================================================
-     * 11) SENSOR / FLOW SIMULATION (Mock)
+     * 11) LOCAL TEMPERATURE (อุณหภูมิพื้นที่ผู้ใช้)
+     *     - ใช้ Geolocation หาตำแหน่ง แล้วดึงอุณหภูมิจาก Open-Meteo (ฟรี ไม่ต้องใช้ API Key)
+     *     - ถ้าไม่ได้รับอนุญาต / offline จะใช้ค่า Mock แทน
      * =================================================================== */
-    function updateFlowSimulation() {
-      if (State.valveOn) {
-        State.flow = clamp(State.flow + (8 - State.flow) * 0.3 + (Math.random() - 0.5) * 0.6, 5, 14);
-      } else {
-        State.flow = clamp(State.flow * 0.5, 0, 0.1);
+    function fetchLocalTemperature() {
+      if (!('geolocation' in navigator)) {
+        startMockTemperature();
+        return;
       }
-      document.getElementById('flowValue').textContent = State.flow.toFixed(1);
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          fetchTemperatureByCoords(lat, lon);
+          fetchPlaceName(lat, lon);
+        },
+        function () {
+          startMockTemperature();
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      );
+    }
+
+    function fetchTemperatureByCoords(lat, lon) {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current_weather=true&timezone=auto';
+      fetch(url)
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.current_weather && typeof data.current_weather.temperature === 'number') {
+            State.temperature = data.current_weather.temperature;
+            State.tempSource = 'live';
+          } else {
+            startMockTemperature();
+          }
+          UI.updateTemperatureUI();
+        })
+        .catch(function () {
+          startMockTemperature();
+        });
+    }
+
+    function fetchPlaceName(lat, lon) {
+      // ใช้ BigDataCloud reverse geocoding แบบฟรี เพื่อแสดงชื่อพื้นที่ (ภาษาไทย)
+      const url = 'https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=th';
+      fetch(url)
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data) {
+            State.tempLocation = data.city || data.locality || data.principalSubdivision || 'พื้นที่ของคุณ';
+          }
+          UI.updateTemperatureUI();
+        })
+        .catch(function () {
+          UI.updateTemperatureUI();
+        });
+    }
+
+    function startMockTemperature() {
+      if (State.temperature === null) {
+        State.temperature = 28 + Math.random() * 8; // 28-36 °C
+      }
+      State.tempSource = 'mock';
+      State.tempLocation = 'พื้นที่ของคุณ (Mock)';
+      UI.updateTemperatureUI();
     }
 
     /* ===================================================================
@@ -997,10 +1200,18 @@
      * =================================================================== */
     let socket = null;
     let reconnectAttempts = 0;
-    let mockTimer = null;
     let autoTimer = null;
 
     function initConnection() {
+      // ถ้าอยู่ใน Android WebView -> ใช้ AndroidBridge (MQTT ผ่าน Kotlin) เป็นช่องทางหลัก
+      if (Bridge.isAndroid()) {
+        console.log('Android WebView: ใช้ AndroidBridge + MQTT');
+        State.connType = 'mqtt';
+        UI.updateEspStatus();
+        Bridge.requestStatus(); // ขอสถานะล่าสุดจาก ESP32 ผ่าน MQTT
+        return;
+      }
+      // เบราว์เซอร์ทั่วไป -> WebSocket / REST / Mock
       if (Config.wsEnabled && 'WebSocket' in window) {
         connectWebSocket();
       } else {
@@ -1058,7 +1269,8 @@
         if (data.mode) State.mode = data.mode;
         if (typeof data.valve === 'boolean') State.valveOn = data.valve;
         if (data.schedules && Array.isArray(data.schedules)) State.schedules = data.schedules;
-        if (typeof data.flow === 'number') State.flow = data.flow;
+        if (typeof data.temperature === 'number') State.temperature = data.temperature;
+        if (data.tempLocation) State.tempLocation = data.tempLocation;
         UI.renderModeButtons();
         UI.updateEspStatus();
         UI.updateValveUI();
@@ -1086,8 +1298,11 @@
     }
 
     function sendCommandToEsp(payload) {
-      // ส่งคำสั่งไปยัง Native Android (ถ้ามี)
-      Bridge.sendCommand(payload);
+      // Android WebView -> ส่งผ่าน AndroidBridge (MQTT) เท่านั้น
+      if (Bridge.isAndroid()) {
+        Bridge.sendCommand(payload);
+        return;
+      }
 
       const json = JSON.stringify(payload);
 
@@ -1113,9 +1328,6 @@
       State.espOnline = false;
       State.connType = 'mock';
       UI.updateEspStatus();
-
-      if (mockTimer) clearInterval(mockTimer);
-      mockTimer = setInterval(updateFlowSimulation, Config.mockInterval);
       console.log('โหมดจำลอง (Mock Data) ทำงาน - ระบบพร้อมใช้งาน');
     }
 
@@ -1127,7 +1339,6 @@
       State.countdown.timerId = null;
       State.countdown.active = false;
       State.valveOn = false;
-      State.flow = 0;
       State.mode = 'manual';
       State.schedules = defaultSchedules();
       UI.renderModeButtons();
@@ -1155,7 +1366,10 @@
       UI.updateSchedulesUI();
 
       initConnection();
-      fallbackToMock(); // เริ่ม mock ทันที (ถ้า WS เชื่อมต่อได้ก็จะถูกแทนที่)
+      if (!Bridge.isAndroid()) {
+        fallbackToMock(); // เบราว์เซอร์: เริ่ม mock ทันที (ถ้า WS เชื่อมต่อได้ก็จะถูกแทนที่)
+      }
+      fetchLocalTemperature(); // อุณหภูมิพื้นที่ผู้ใช้ (Geolocation + Open-Meteo)
 
       // ตรวจสอบตารางเวลาอัตโนมัติทุกนาที
       autoTimer = setInterval(() => {
