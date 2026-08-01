@@ -433,10 +433,12 @@
         }
       },
 
-      // ขอสถานะล่าสุดจาก ESP32 ผ่าน MQTT (กันสแปม: ขอได้ไม่ถี่กว่า 2 วินาที)
+      // ขอสถานะล่าสุดจาก ESP32 ผ่าน MQTT (กันสแปม + ไม่ขอตอนยังไม่เชื่อมต่อ)
       requestStatus() {
         const now = Date.now();
         if (this._lastStatusReq && now - this._lastStatusReq < 2000) return;
+        const st = this.getMqttStatus();
+        if (!st || !st.connected) return; // ยังไม่เชื่อมต่อ -> รอ onMqttConnected เรียกเอง
         this._lastStatusReq = now;
         this.triggerAction('getStatus');
       },
@@ -492,7 +494,6 @@
         online: true,
         valve: typeof msg.valve === 'boolean' ? msg.valve
              : msg.open === true || msg.state === 'open' || msg.valve === 'on',
-        mode: msg.mode,
         temperature: typeof msg.temperature === 'number' ? msg.temperature : State.temperature,
         schedules: Array.isArray(msg.schedules) ? msg.schedules : State.schedules
       });
@@ -580,6 +581,7 @@
       espOnline: false,
       connType: 'none',        // 'ws' | 'rest' | 'mqtt' | 'mock'
       mode: 'manual',          // 'auto' | 'manual'
+      autoCommanded: null,     // สถานะล่าสุดที่โหมดอัตโนมัติสั่ง ('open'|'close'|null)
       valveOn: false,
       temperature: null,       // °C จากพื้นที่ผู้ใช้ (Geolocation)
       tempLocation: 'กำลังระบุตำแหน่ง...',
@@ -1004,15 +1006,25 @@
     }
 
     function evaluateAutoMode() {
-      if (State.mode !== 'auto') return;
+      // ไม่ใช่โหมด auto -> รีเซ็ตสถานะที่สั่งไว้
+      if (State.mode !== 'auto') {
+        State.autoCommanded = null;
+        return;
+      }
       const shouldOpen = autoModeShouldOpen();
-      if (State.valveOn !== shouldOpen) {
-        setValveState(shouldOpen);
-        if (shouldOpen) {
-          Bridge.showToast('🔄 โหมดอัตโนมัติ: เปิดวาล์วตามตารางเวลา');
-        } else {
-          Bridge.showToast('🔄 โหมดอัตโนมัติ: ปิดวาล์ว (หมดเวลาตาราง)');
+      const action = shouldOpen ? 'open' : 'close';
+      // ส่งเปิด/ปิดเป็นคำสั่งแยกกัน ชัดเจน ทุกครั้งที่สลับสถานะตามตาราง
+      // (ไม่พึ่ง State.valveOn ที่อาจ desync กับ ESP32)
+      if (State.autoCommanded !== action) {
+        State.autoCommanded = action;
+        sendCommandToEsp({ type: 'valve', action: action });
+        if (State.valveOn !== shouldOpen) {
+          State.valveOn = shouldOpen;
+          if (!shouldOpen) cancelCountdown();
+          UI.updateValveUI();
+          saveState();
         }
+        Bridge.showToast('🔄 โหมดอัตโนมัติ: ' + (shouldOpen ? 'เปิดวาล์วตามตารางเวลา' : 'ปิดวาล์ว (หมดเวลาตาราง)'));
         Bridge.triggerVibration(30);
       }
     }
@@ -1231,9 +1243,10 @@
       }
       Bridge.triggerVibration(30);
 
-      // เมื่อสลับเป็น Auto ให้ประเมินตารางเวลาทันที
+      // เมื่อสลับเป็น Auto ให้ประเมินตารางเวลาทันที (บังคับส่งคำสั่งใหม่ตามตารางปัจจุบัน)
       if (mode === 'auto') {
         cancelCountdown();
+        State.autoCommanded = null;
         evaluateAutoMode();
       }
       UI.updateValveUI();
@@ -1380,7 +1393,7 @@
 
       if (data.type === 'status') {
         State.espOnline = data.online !== false;
-        if (data.mode) State.mode = data.mode;
+        // ไม่รับ mode จากอุปกรณ์: แอปเป็นเจ้าของโหมด (กันโหมดอัตโนมัติโดนทับเป็น manual)
         if (typeof data.valve === 'boolean') State.valveOn = data.valve;
         if (data.schedules && Array.isArray(data.schedules)) State.schedules = data.schedules;
         if (typeof data.temperature === 'number') State.temperature = data.temperature;
