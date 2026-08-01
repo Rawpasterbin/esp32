@@ -583,8 +583,10 @@
         active: false,
         totalSeconds: 0,
         remainingSeconds: 0,
+        endTime: null,           // เวลาสิ้นสุด (epoch ms) เพื่อให้ยังนับต่อได้แม้ปิดแอพ
         timerId: null
       },
+      forceValveOff: false,      // ตั้งค่าเมื่อจับเวลาจบไปแล้วตอนปิดแอพ -> ต้องสั่งปิดวาล์วตอนเปิดแอพใหม่
       schedules: [],
       nextSchedule: null
     };
@@ -767,6 +769,92 @@
     }
 
     /* ===================================================================
+     * 4.5) PERSISTENCE (บันทึก/กู้คืนการตั้งค่าผ่าน localStorage)
+     *      - บันทึกตารางเวลา, โหมด, สถานะวาล์ว และจับเวลา
+     *      - เมื่อปิดแอพแล้วเปิดใหม่ ระบบจะกู้คืนค่าเดิมทั้งหมด
+     * =================================================================== */
+    const STORAGE_KEY = 'smartWaterValve_v1';
+
+    function saveState() {
+      try {
+        const data = {
+          mode: State.mode,
+          valveOn: State.valveOn,
+          schedules: State.schedules,
+          countdown: {
+            active: State.countdown.active,
+            totalSeconds: State.countdown.totalSeconds,
+            endTime: State.countdown.endTime,       // เก็บเวลาเหลือจริง (นับต่อได้แม้ปิดแอพ)
+            savedAt: Date.now()
+          },
+          savedAt: Date.now()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) { /* localStorage ไม่มี (เช่น WebView ปิด) -> ข้ามไป */ }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const data = JSON.parse(raw);
+        if (!data) return false;
+
+        // กู้คืนโหมด
+        if (data.mode === 'auto' || data.mode === 'manual') {
+          State.mode = data.mode;
+        }
+
+        // กู้คืนตารางเวลา (ถ้ามี)
+        if (Array.isArray(data.schedules) && data.schedules.length > 0) {
+          State.schedules = data.schedules.map(normalizeSchedule);
+        }
+
+        // กู้คืนจับเวลา: คำนวณเวลาที่เหลือใหม่จาก endTime (วอล์-คล็อก)
+        if (data.countdown && data.countdown.active && data.countdown.endTime) {
+          const remainMs = data.countdown.endTime - Date.now();
+          if (remainMs > 0) {
+            State.countdown.active = true;
+            State.countdown.totalSeconds = data.countdown.totalSeconds || Math.round(remainMs / 1000);
+            State.countdown.remainingSeconds = Math.round(remainMs / 1000);
+            State.countdown.endTime = data.countdown.endTime;
+            State.valveOn = true; // ถ้ายังเหลือเวลา -> วาล์วยังเปิดอยู่
+          } else {
+            // หมดเวลาไปแล้วตอนปิดแอพ -> ปิดวาล์วตอนเปิดแอพใหม่
+            State.countdown.active = false;
+            State.countdown.endTime = null;
+            State.countdown.remainingSeconds = 0;
+            State.valveOn = false;
+            State.forceValveOff = true;
+          }
+        }
+
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function normalizeSchedule(s) {
+      if (!s || typeof s !== 'object') return null;
+      const days = Array.isArray(s.days) && s.days.length === 7
+        ? s.days.map(Boolean)
+        : [false, false, false, false, false, false, false];
+      return {
+        id: Number(s.id) || 0,
+        name: String(s.name || 'กำหนดเวลา'),
+        start: typeof s.start === 'string' && /^\d{2}:\d{2}$/.test(s.start) ? s.start : '06:00',
+        end: typeof s.end === 'string' && /^\d{2}:\d{2}$/.test(s.end) ? s.end : '06:30',
+        days: days,
+        enabled: !!s.enabled
+      };
+    }
+
+    function clearSavedState() {
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+    }
+
+    /* ===================================================================
      * 5) VALVE CONTROL
      * =================================================================== */
     function setValveState(on) {
@@ -776,6 +864,7 @@
         cancelCountdown();
       }
       UI.updateValveUI();
+      saveState();
       sendCommandToEsp({ type: 'valve', action: on ? 'on' : 'off' });
     }
 
@@ -818,9 +907,12 @@
       State.countdown.active = true;
       State.countdown.totalSeconds = minutes * 60;
       State.countdown.remainingSeconds = minutes * 60;
+      // บันทึกเวลาเหลือจริง (epoch ms) -> ยังนับต่อได้แม้ปิดแอพแล้วเปิดใหม่
+      State.countdown.endTime = Date.now() + minutes * 60000;
       State.countdown.timerId = setInterval(tickCountdown, 1000);
 
       if (!State.valveOn) setValveState(true);
+      saveState();
 
       Bridge.showToast('⏱️ เปิดวาล์วและจับเวลา ' + minutes + ' นาที');
       Bridge.triggerVibration(30);
@@ -829,14 +921,23 @@
     }
 
     function tickCountdown() {
-      State.countdown.remainingSeconds--;
+      if (!State.countdown.active || !State.countdown.endTime) return;
+
+      // คำนวณเวลาที่เหลือจาก wall-clock (แม่นยำแม้แอพถูกปิดแล้วเปิดใหม่)
+      const remainMs = State.countdown.endTime - Date.now();
+      State.countdown.remainingSeconds = Math.max(0, Math.round(remainMs / 1000));
+
       if (State.countdown.remainingSeconds <= 0) {
         clearInterval(State.countdown.timerId);
         State.countdown.timerId = null;
         State.countdown.active = false;
         State.countdown.totalSeconds = 0;
         State.countdown.remainingSeconds = 0;
-        setValveState(false);
+        State.countdown.endTime = null;
+        State.valveOn = false;
+        UI.updateValveUI();
+        saveState();
+        sendCommandToEsp({ type: 'valve', action: 'off' });
         Bridge.showToast('✅ หมดเวลา ปิดวาล์วน้ำอัตโนมัติ');
         Bridge.triggerVibration(40);
         UI.updateCountdownForm();
@@ -856,6 +957,8 @@
       State.countdown.active = false;
       State.countdown.totalSeconds = 0;
       State.countdown.remainingSeconds = 0;
+      State.countdown.endTime = null;
+      saveState();
       Bridge.showToast('⏹️ ยกเลิกการจับเวลา');
       Bridge.triggerVibration(20);
       UI.updateCountdownForm();
@@ -1038,6 +1141,7 @@
       sch.days[dayIndex] = !sch.days[dayIndex];
       Bridge.triggerVibration(20);
       sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, days: sch.days });
+      saveState();
       renderSchedules();
       updateNextSchedule();
       evaluateAutoMode();
@@ -1051,6 +1155,7 @@
       sch.start = startEl.value || sch.start;
       sch.end = endEl.value || sch.end;
       sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, start: sch.start, end: sch.end });
+      saveState();
       Bridge.showToast('✅ อัปเดตเวลา ' + sch.name + ': ' + sch.start + ' - ' + sch.end);
       Bridge.triggerVibration(20);
       updateNextSchedule();
@@ -1062,6 +1167,7 @@
       if (!sch) return;
       sch.enabled = !sch.enabled;
       sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, enabled: sch.enabled });
+      saveState();
       Bridge.showToast(sch.enabled ? '▶️ เปิดใช้งาน ' + sch.name : '⏸️ ปิดใช้งาน ' + sch.name);
       Bridge.triggerVibration(30);
       renderSchedules();
@@ -1074,6 +1180,7 @@
       if (!sch) return;
       State.schedules = State.schedules.filter((s) => s.id !== scheduleId);
       sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, action: 'delete' });
+      saveState();
       Bridge.showToast('🗑️ ลบ ' + sch.name + ' แล้ว');
       Bridge.triggerVibration(40);
       renderSchedules();
@@ -1092,6 +1199,7 @@
         enabled: true
       });
       sendCommandToEsp({ type: 'schedule', action: 'add', schedule: State.schedules[State.schedules.length - 1] });
+      saveState();
       Bridge.showToast('➕ เพิ่มตารางเวลาใหม่แล้ว');
       Bridge.triggerVibration(30);
       renderSchedules();
@@ -1106,6 +1214,7 @@
       State.mode = mode;
       UI.renderModeButtons();
       sendCommandToEsp({ type: 'mode', mode: mode });
+      saveState();
 
       const hint = document.getElementById('manualHint');
       if (mode === 'manual') {
@@ -1275,6 +1384,7 @@
         UI.updateEspStatus();
         UI.updateValveUI();
         UI.updateSchedulesUI();
+        saveState();
       }
 
       if (data.type === 'valve') {
@@ -1283,6 +1393,7 @@
           State.valveOn = on;
           if (!on) cancelCountdown();
           UI.updateValveUI();
+          saveState();
         }
       }
 
@@ -1290,6 +1401,7 @@
         State.mode = data.mode === 'auto' ? 'auto' : 'manual';
         UI.renderModeButtons();
         UI.updateValveUI();
+        saveState();
       }
 
       if (data.type === 'ack') {
@@ -1338,9 +1450,12 @@
       clearInterval(State.countdown.timerId);
       State.countdown.timerId = null;
       State.countdown.active = false;
+      State.countdown.endTime = null;
+      State.countdown.remainingSeconds = 0;
       State.valveOn = false;
       State.mode = 'manual';
       State.schedules = defaultSchedules();
+      clearSavedState();
       UI.renderModeButtons();
       UI.updateValveUI();
       UI.updateCountdownForm();
@@ -1353,9 +1468,21 @@
     /* ===================================================================
      * 14) INITIALIZE
      * =================================================================== */
+    function resumeCountdown() {
+      // กู้คืนการนับถอยหลังจาก localStorage (นับต่อจากเวลาที่เหลือจริง)
+      if (!State.countdown.active || !State.countdown.endTime) return;
+      if (State.countdown.timerId) clearInterval(State.countdown.timerId);
+      State.countdown.timerId = setInterval(tickCountdown, 1000);
+      tickCountdown();
+    }
+
     function init() {
-      // ค่าเริ่มต้น
+      // ค่าเริ่มต้น แล้วกู้คืนค่าที่เคยบันทึกไว้ (ถ้ามี)
       State.schedules = defaultSchedules();
+      const hasSaved = loadState();
+      if (hasSaved) {
+        console.log('กู้คืนการตั้งค่าที่บันทึกไว้จาก localStorage');
+      }
 
       UI.updateClock();
       setInterval(UI.updateClock, 1000);
@@ -1370,6 +1497,17 @@
         fallbackToMock(); // เบราว์เซอร์: เริ่ม mock ทันที (ถ้า WS เชื่อมต่อได้ก็จะถูกแทนที่)
       }
       fetchLocalTemperature(); // อุณหภูมิพื้นที่ผู้ใช้ (Geolocation + Open-Meteo)
+
+      // ถ้าจับเวลายังไม่หมดตอนปิดแอพ -> นับต่อทันที
+      resumeCountdown();
+
+      // ถ้าจับเวลาหมดไปแล้วตอนปิดแอพ -> สั่งปิดวาล์ว (จริง ๆ ส่งไปแค่ครั้งเดียวตอนตั้งเวลา)
+      if (State.forceValveOff) {
+        State.forceValveOff = false;
+        sendCommandToEsp({ type: 'valve', action: 'off' });
+        Bridge.showToast('⏹️ หมดเวลาไปแล้วตอนปิดแอพ → ปิดวาล์วอัตโนมัติ');
+        Bridge.triggerVibration(40);
+      }
 
       // ตรวจสอบตารางเวลาอัตโนมัติทุกนาที
       autoTimer = setInterval(() => {
