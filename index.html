@@ -230,8 +230,8 @@
           <div class="glass-inset rounded-xl px-3 py-2 flex items-center gap-2">
             <span class="text-[10px] font-bold text-slate-400">โหมด</span>
             <div class="flex items-center bg-slate-900/60 rounded-full p-1">
-              <button id="btnAuto" onclick="setMode('auto')" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">🔄 อัตโนมัติ</button>
-              <button id="btnManual" onclick="setMode('manual')" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">✋ แมนนวล</button>
+              <button id="btnAuto" onclick="toggleMode()" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">🔄 อัตโนมัติ</button>
+              <button id="btnManual" onclick="toggleMode()" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">✋ แมนนวล</button>
             </div>
           </div>
         </div>
@@ -403,16 +403,15 @@
         if (!this.isAndroid()) return false;
         if (!payload || typeof payload !== 'object') return false;
 
-        const cmd = this.mapCommand(payload);
-        if (cmd) return this.triggerAction(cmd);
-
-        // payload ซับซ้อน (mode/schedule/reset) -> ส่ง JSON ทั้งก้อนผ่าน triggerAction
-        // ฝั่ง Kotlin ตรวจเจอว่าเป็น JSON แล้วเลือก topic ให้เอง
-        try {
-          return this.triggerAction(JSON.stringify(payload));
-        } catch (e) {
+        // ตารางเวลา/โหมด/รีเซ็ต จัดการในแอปฝั่งเดียว — ESP32 ใช้แค่เปิด/ปิดจริง
+        // -> ไม่ต้องส่ง MQTT (เสียเน็ตเปล่าๆ ทั้งที่ไม่มีใครรับ/ใช้)
+        if (payload.type === 'mode' || payload.type === 'schedule' || payload.type === 'reset') {
           return false;
         }
+
+        const cmd = this.mapCommand(payload);
+        if (cmd) return this.triggerAction(cmd);
+        return false;
       },
 
       // payload -> command string ตาม CommandProcessor.kt
@@ -622,6 +621,11 @@
         const autoBtn = document.getElementById('btnAuto');
         const manualBtn = document.getElementById('btnManual');
         const isAuto = State.mode === 'auto';
+
+        // ซ่อนปุ่มโหมดที่ไม่ได้เลือก ไว้ดูเรียบร้อย (แตะปุ่มที่โชว์อยู่เพื่อสลับโหมด)
+        autoBtn.style.display = isAuto ? '' : 'none';
+        manualBtn.style.display = isAuto ? 'none' : '';
+
         autoBtn.className = 'px-3 py-1 rounded-full text-[11px] font-bold transition-all ' + (isAuto
           ? 'bg-teal-400 text-slate-900 shadow-lg glow-teal'
           : 'text-slate-400');
@@ -634,6 +638,13 @@
           hint.innerHTML = '🔄 <span class="font-bold text-teal-300">โหมดอัตโนมัติ</span>';
         } else {
           hint.innerHTML = '✋ <span class="font-bold text-sky-300">โหมดแมนนวล</span>';
+        }
+
+        const mhint = document.getElementById('manualHint');
+        if (isAuto) {
+          mhint.textContent = '🔄 โหมดอัตโนมัติ - ควบคุมด้วยตารางเวลา';
+        } else {
+          mhint.textContent = '⚠️ คำเตือน: ถ้าค้างโหมดแมนนวลไว้ ตารางเวลาอัตโนมัติจะไม่ทำงาน';
         }
       },
 
@@ -1224,18 +1235,18 @@
     /* ===================================================================
      * 10) MODE SWITCHING
      * =================================================================== */
+    function toggleMode() {
+      setMode(State.mode === 'auto' ? 'manual' : 'auto');
+    }
+
     function setMode(mode) {
       State.mode = mode;
       UI.renderModeButtons();
-      sendCommandToEsp({ type: 'mode', mode: mode });
       saveState();
 
-      const hint = document.getElementById('manualHint');
       if (mode === 'manual') {
-        hint.textContent = '✋ โหมดแมนนวล - ควบคุมวาล์วได้';
-        Bridge.showToast('✋ สลับเป็นโหมดแมนนวล');
+        Bridge.showToast('✋ โหมดแมนนวล — ตารางเวลาอัตโนมัติจะไม่ทำงานจนกว่าจะสลับกลับ', 4000);
       } else {
-        hint.textContent = '🔄 โหมดอัตโนมัติ - ควบคุมด้วยตารางเวลา';
         Bridge.showToast('🔄 สลับเป็นโหมดอัตโนมัติ');
       }
       Bridge.triggerVibration(30);
