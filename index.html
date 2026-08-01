@@ -403,15 +403,21 @@
         if (!this.isAndroid()) return false;
         if (!payload || typeof payload !== 'object') return false;
 
-        // ตารางเวลา/โหมด/รีเซ็ต จัดการในแอปฝั่งเดียว — ESP32 ใช้แค่เปิด/ปิดจริง
-        // -> ไม่ต้องส่ง MQTT (เสียเน็ตเปล่าๆ ทั้งที่ไม่มีใครรับ/ใช้)
-        if (payload.type === 'mode' || payload.type === 'schedule' || payload.type === 'reset') {
+        // 'reset' จัดการในแอปเท่านั้น — ESP32 ไม่ต้องรู้
+        if (payload.type === 'reset') {
           return false;
         }
 
         const cmd = this.mapCommand(payload);
         if (cmd) return this.triggerAction(cmd);
-        return false;
+
+        // mode/schedule -> ส่ง JSON ทั้งก้อนไป MQTT (Kotlin เลือก topic ตาม type)
+        // ESP32 จะเก็บโหมด/ตารางเวลาไว้เอง แล้วเปิด-ปิดวาล์วตามตารางแม้แอปปิด
+        try {
+          return this.triggerAction(JSON.stringify(payload));
+        } catch (e) {
+          return false;
+        }
       },
 
       // payload -> command string ตาม CommandProcessor.kt
@@ -517,6 +523,9 @@
       State.connType = 'mqtt';
       UI.updateEspStatus();
       UI.showToast('🔌 เชื่อมต่อ MQTT (HiveMQ) สำเร็จ', 1800);
+      // sync โหมด + ตารางเวลาให้ ESP32 ทุกครั้งที่ (re)connect
+      sendModeToEsp();
+      syncSchedulesToEsp();
       Bridge.requestStatus();
     };
 
@@ -1014,27 +1023,14 @@
     }
 
     function evaluateAutoMode() {
-      // ไม่ใช่โหมด auto -> รีเซ็ตสถานะที่สั่งไว้
+      // โหมด auto: ESP32 เป็นผู้เปิด/ปิดวาล์วตามตารางเวลาเอง (ทำงานแม้แอปปิด)
+      // แอปไม่ออกคำสั่งแล้ว — แค่อัปเดต UI ให้ตรง
       if (State.mode !== 'auto') {
         State.autoCommanded = null;
         return;
       }
-      const shouldOpen = autoModeShouldOpen();
-      const action = shouldOpen ? 'open' : 'close';
-      // ส่งเปิด/ปิดเป็นคำสั่งแยกกัน ชัดเจน ทุกครั้งที่สลับสถานะตามตาราง
-      // (ไม่พึ่ง State.valveOn ที่อาจ desync กับ ESP32)
-      if (State.autoCommanded !== action) {
-        State.autoCommanded = action;
-        sendCommandToEsp({ type: 'valve', action: action });
-        if (State.valveOn !== shouldOpen) {
-          State.valveOn = shouldOpen;
-          if (!shouldOpen) cancelCountdown();
-          UI.updateValveUI();
-          saveState();
-        }
-        Bridge.showToast('🔄 โหมดอัตโนมัติ: ' + (shouldOpen ? 'เปิดวาล์วตามตารางเวลา' : 'ปิดวาล์ว (หมดเวลาตาราง)'));
-        Bridge.triggerVibration(30);
-      }
+      State.autoCommanded = autoModeShouldOpen() ? 'open' : 'close';
+      UI.updateValveTimerText();
     }
 
     function updateNextSchedule() {
@@ -1165,7 +1161,7 @@
       if (!sch) return;
       sch.days[dayIndex] = !sch.days[dayIndex];
       Bridge.triggerVibration(20);
-      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, days: sch.days });
+      syncSchedulesToEsp();
       saveState();
       renderSchedules();
       updateNextSchedule();
@@ -1179,7 +1175,7 @@
       const endEl = document.getElementById('scheduleEnd-' + scheduleId);
       sch.start = startEl.value || sch.start;
       sch.end = endEl.value || sch.end;
-      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, start: sch.start, end: sch.end });
+      syncSchedulesToEsp();
       saveState();
       Bridge.showToast('✅ อัปเดตเวลา ' + sch.name + ': ' + sch.start + ' - ' + sch.end);
       Bridge.triggerVibration(20);
@@ -1191,7 +1187,7 @@
       const sch = findSchedule(scheduleId);
       if (!sch) return;
       sch.enabled = !sch.enabled;
-      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, enabled: sch.enabled });
+      syncSchedulesToEsp();
       saveState();
       Bridge.showToast(sch.enabled ? '▶️ เปิดใช้งาน ' + sch.name : '⏸️ ปิดใช้งาน ' + sch.name);
       Bridge.triggerVibration(30);
@@ -1204,7 +1200,7 @@
       const sch = findSchedule(scheduleId);
       if (!sch) return;
       State.schedules = State.schedules.filter((s) => s.id !== scheduleId);
-      sendCommandToEsp({ type: 'schedule', scheduleId: scheduleId, action: 'delete' });
+      syncSchedulesToEsp();
       saveState();
       Bridge.showToast('🗑️ ลบ ' + sch.name + ' แล้ว');
       Bridge.triggerVibration(40);
@@ -1223,7 +1219,7 @@
         days: [true, true, true, true, true, true, false],
         enabled: true
       });
-      sendCommandToEsp({ type: 'schedule', action: 'add', schedule: State.schedules[State.schedules.length - 1] });
+      syncSchedulesToEsp();
       saveState();
       Bridge.showToast('➕ เพิ่มตารางเวลาใหม่แล้ว');
       Bridge.triggerVibration(30);
@@ -1243,6 +1239,7 @@
       State.mode = mode;
       UI.renderModeButtons();
       saveState();
+      sendModeToEsp();
 
       if (mode === 'manual') {
         Bridge.showToast('✋ โหมดแมนนวล — ตารางเวลาอัตโนมัติจะไม่ทำงานจนกว่าจะสลับกลับ', 4000);
@@ -1251,7 +1248,7 @@
       }
       Bridge.triggerVibration(30);
 
-      // เมื่อสลับเป็น Auto ให้ประเมินตารางเวลาทันที (บังคับส่งคำสั่งใหม่ตามตารางปัจจุบัน)
+      // เมื่อสลับเป็น Auto: ESP32 จะประเมินตารางเวลาทันที (เปิด/ปิดเอง)
       if (mode === 'auto') {
         cancelCountdown();
         State.autoCommanded = null;
@@ -1462,6 +1459,17 @@
         });
     }
 
+    // ส่งโหมด (auto/manual) ให้ ESP32 เก็บไว้ใน NVS
+    function sendModeToEsp() {
+      sendCommandToEsp({ type: 'mode', mode: State.mode });
+    }
+
+    // ส่งตารางเวลาทั้งหมดให้ ESP32 เก็บไว้เอง
+    // -> ESP32 เปิด/ปิดวาล์วตามตารางได้เอง แม้แอปถูกปิด
+    function syncSchedulesToEsp() {
+      sendCommandToEsp({ type: 'schedule', schedules: State.schedules });
+    }
+
     function fallbackToMock() {
       State.espOnline = false;
       State.connType = 'mock';
@@ -1486,7 +1494,8 @@
       UI.updateValveUI();
       UI.updateCountdownForm();
       UI.updateSchedulesUI();
-      sendCommandToEsp({ type: 'reset' });
+      syncSchedulesToEsp();
+      sendModeToEsp();
       Bridge.showToast('🔄 รีเซ็ตข้อมูลเรียบร้อย');
       Bridge.triggerVibration(40);
     }
@@ -1517,6 +1526,10 @@
       UI.updateValveUI();
       UI.updateCountdownForm();
       UI.updateSchedulesUI();
+
+      // sync โหมด + ตารางเวลาให้ ESP32 (เก็บไว้ในตัวมัน ทำงานแม้แอปปิด)
+      sendModeToEsp();
+      syncSchedulesToEsp();
 
       initConnection();
       if (!Bridge.isAndroid()) {
