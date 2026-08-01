@@ -538,10 +538,7 @@
       const msg = normalizePayload(json);
       if (msg && msg.sent === true) {
         console.log('Command sent:', msg.command, '->', msg.topic);
-        // ขอสถานะกลับมาเฉพาะตอนสั่งคำสั่งจริง (ไม่รวม getStatus เพื่อกัน loop สแปม MQTT)
-        if (msg.command !== 'getStatus') {
-          Bridge.requestStatus();
-        }
+        // ไม่ขอ getStatus ซ้ำ: ESP32 ส่งสถานะให้เองทุกครั้งที่วาล์วเปลี่ยน
       }
     };
 
