@@ -35,11 +35,32 @@ String valveMode = "manual";   // "auto" | "manual" (บันทึกใน NV
 String schedulesJson = "";     // JSON array ของตารางเวลา (บันทึกใน NVS)
 
 unsigned long lastScheduleCheck = 0;
+unsigned long lastStatusPublish = 0;
+
+// นับจำนวนตารางเวลาที่อยู่ใน JSON (นับเครื่องหมาย { ระดับรายการ)
+int scheduleCount() {
+  int count = 0;
+  int pos = 0;
+  while ((pos = schedulesJson.indexOf('{', pos)) >= 0) {
+    count++;
+    pos++;
+  }
+  return count;
+}
 
 /* ============ สถานะ ============ */
 // ส่งสถานะเป็น JSON ให้แอปอ่าน (แอปรอรับ {"valve":true/false,...})
+// เพิ่ม mode / จำนวนตาราง / time เพื่อให้แอปตรวจสอบว่า ESP32 ได้รับข้อมูลครบไหม
 void publishStatus() {
-  String json = "{\"valve\":" + String(valveOn ? "true" : "false") + ",\"online\":true}";
+  time_t now = time(nullptr);
+  bool ntpOk = now >= 1500000000;
+  String json = "{\"valve\":" + String(valveOn ? "true" : "false")
+    + ",\"online\":true"
+    + ",\"mode\":\"" + valveMode + "\""
+    + ",\"scheduleCount\":" + String(scheduleCount())
+    + ",\"ntp\":" + String(ntpOk ? "true" : "false")
+    + ",\"time\":" + String((long)now)
+    + "}";
   mqtt.publish(STATUS_TOPIC, json.c_str());
   Serial.println("Status sent: " + json);
 }
@@ -268,5 +289,11 @@ void loop() {
   if (millis() - lastScheduleCheck >= SCHEDULE_CHECK_MS) {
     lastScheduleCheck = millis();
     autoCheck();
+  }
+
+  // publish สถานะเป็นระยะ (ทุก 30 วิ) ให้แอปเห็นว่า ESP32 ยังอยู่ + สถานะจริง
+  if (millis() - lastStatusPublish >= 30000) {
+    lastStatusPublish = millis();
+    publishStatus();
   }
 }

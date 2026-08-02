@@ -500,7 +500,11 @@
         valve: typeof msg.valve === 'boolean' ? msg.valve
              : msg.open === true || msg.state === 'open' || msg.valve === 'on',
         temperature: typeof msg.temperature === 'number' ? msg.temperature : State.temperature,
-        schedules: Array.isArray(msg.schedules) ? msg.schedules : State.schedules
+        schedules: Array.isArray(msg.schedules) ? msg.schedules : State.schedules,
+        mode: msg.mode,
+        scheduleCount: msg.scheduleCount,
+        ntp: msg.ntp,
+        time: msg.time
       });
     };
 
@@ -1414,6 +1418,15 @@
         UI.updateValveUI();
         UI.updateSchedulesUI();
         saveState();
+
+        // ถ้า ESP32 ไม่มีข้อมูลตรงกับแอป (เช่นหลุด sync ตอนแอปเปิด) -> ส่งซ้ำให้ใหม่
+        // ESP32 publish สถานะทุก 30 วิ แอปจะได้ re-sync อัตโนมัติ
+        if (typeof data.scheduleCount === 'number' && data.scheduleCount !== State.schedules.length) {
+          syncSchedulesToEsp();
+        }
+        if (data.mode && data.mode !== State.mode) {
+          sendModeToEsp();
+        }
       }
 
       if (data.type === 'valve') {
