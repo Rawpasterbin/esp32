@@ -102,7 +102,7 @@ bool parseDays(const String& arr, bool days[7]) {
     int comma = inner.indexOf(',', pos);
     String tok = (comma < 0) ? inner.substring(pos) : inner.substring(pos, comma);
     tok.trim();
-    days[idx] = (tok == "1");
+    days[idx] = (tok == "1" || tok == "true");
     if (comma < 0) break;
     pos = comma + 1;
     idx++;

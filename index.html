@@ -227,12 +227,13 @@
           </div>
 
           <!-- Mode Switch (Auto / Manual) -->
-          <div class="glass-inset rounded-xl px-3 py-2 flex items-center gap-2">
-            <span class="text-[10px] font-bold text-slate-400">โหมด</span>
-            <div class="flex items-center bg-slate-900/60 rounded-full p-1">
-              <button id="btnAuto" onclick="toggleMode()" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">🔄 อัตโนมัติ</button>
-              <button id="btnManual" onclick="toggleMode()" class="px-3 py-1 rounded-full text-[11px] font-bold transition-all">✋ แมนนวล</button>
+          <div class="glass-inset rounded-2xl px-4 py-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-slate-400">โหมดการทำงาน</span>
+              <span class="text-[10px] text-slate-500">แตะเพื่อสลับโหมด</span>
             </div>
+            <button id="btnAuto" onclick="toggleMode()" class="w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2">🔄 อัตโนมัติ</button>
+            <button id="btnManual" onclick="toggleMode()" class="w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2">✋ แมนนวล</button>
           </div>
         </div>
       </div>
@@ -635,12 +636,12 @@
         autoBtn.style.display = isAuto ? '' : 'none';
         manualBtn.style.display = isAuto ? 'none' : '';
 
-        autoBtn.className = 'px-3 py-1 rounded-full text-[11px] font-bold transition-all ' + (isAuto
+        autoBtn.className = 'w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2 ' + (isAuto
           ? 'bg-teal-400 text-slate-900 shadow-lg glow-teal'
-          : 'text-slate-400');
-        manualBtn.className = 'px-3 py-1 rounded-full text-[11px] font-bold transition-all ' + (!isAuto
+          : 'bg-slate-800/60 text-slate-400');
+        manualBtn.className = 'w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2 ' + (!isAuto
           ? 'bg-sky-400 text-slate-900 shadow-lg glow-blue'
-          : 'text-slate-400');
+          : 'bg-slate-800/60 text-slate-400');
 
         const hint = document.getElementById('modeHint');
         if (isAuto) {
