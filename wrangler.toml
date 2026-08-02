@@ -6,7 +6,7 @@ compatibility_date = "2024-09-01"
 #   wrangler kv namespace create SCHEDULE_KV
 [[kv_namespaces]]
 binding = "SCHEDULE_KV"
-id = "REPLACE_WITH_KV_ID"
+id = "0685a046b05848818ceb2146ddcec213"
 
 # Cron ทุก 1 นาที
 [triggers]
