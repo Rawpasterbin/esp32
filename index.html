@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a0f1e" />
-  <title>Smart Water Valve | ระบบควบคุมวาล์วน้ำอัตโนมัติ</title>
+  <title>ระบบควบคุมวาล์วน้ำอัตโนมัติ</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -206,7 +206,7 @@
           <div id="valveIconHeader" class="w-11 h-11 rounded-xl flex items-center justify-center text-2xl valve-icon-wrap" style="background: linear-gradient(135deg, rgba(45,212,191,0.3), rgba(56,189,248,0.3));">💧</div>
           <div>
             <h1 class="text-lg font-bold text-white leading-tight">ระบบควบคุมวาล์วน้ำอัตโนมัติ</h1>
-            <p class="text-xs text-slate-400">Smart Water Valve · ESP32</p>
+            <p class="text-xs text-slate-400">ESP32 · โหมดอัตโนมัติและแมนนวล</p>
           </div>
         </div>
 
@@ -230,10 +230,10 @@
           <div class="glass-inset rounded-2xl px-4 py-3">
             <div class="flex items-center justify-between mb-2">
               <span class="text-xs font-bold text-slate-400">โหมดการทำงาน</span>
-              <span class="text-[10px] text-slate-500">แตะเพื่อสลับโหมด</span>
+              <span class="text-[10px] text-slate-500">กดเพื่อสลับโหมด</span>
             </div>
-            <button id="btnAuto" onclick="toggleMode()" class="w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2">🔄 อัตโนมัติ</button>
-            <button id="btnManual" onclick="toggleMode()" class="w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2">✋ แมนนวล</button>
+            <button id="btnAuto" onclick="toggleMode()" class="w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2">อัตโนมัติ</button>
+            <button id="btnManual" onclick="toggleMode()" class="w-full py-3.5 rounded-2xl text-base font-bold transition-all flex items-center justify-center gap-2">แมนนวล</button>
           </div>
         </div>
       </div>
@@ -242,7 +242,7 @@
     <!-- ================= VALVE STATUS CARD ================= -->
     <section class="glass rounded-2xl p-4 sm:p-5 mb-4">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="font-bold text-white flex items-center gap-2"><span>🚰</span> สถานะวาล์วน้ำ</h2>
+        <h2 class="font-bold text-white flex items-center gap-2">สถานะวาล์วน้ำ</h2>
         <span id="valveStateBadge" class="badge" style="background: rgba(100,116,139,0.2); border: 1px solid rgba(148,163,184,0.35); color:#94a3b8;">วาล์วปิด</span>
       </div>
 
@@ -251,48 +251,48 @@
         <div class="glass-inset rounded-2xl p-4 flex flex-col items-center justify-center">
           <div id="valveIcon" class="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl valve-icon-wrap transition-all" style="background: rgba(148,163,184,0.15); border:1px solid rgba(148,163,184,0.3);">🚱</div>
           <div id="valveStatusText" class="mt-2 text-sm font-bold text-slate-400">วาล์วปิดอยู่</div>
-          <div id="valveStatusSub" class="text-[10px] text-slate-500">ไม่มีการปล่อยน้ำ</div>
+          <div id="valveStatusSub" class="text-[10px] text-slate-500">น้ำไม่ไหล</div>
         </div>
 
         <!-- Local temperature -->
         <div class="glass-inset rounded-2xl p-4 flex flex-col justify-center">
-          <div class="text-[11px] text-slate-400 mb-2">🌡️ อุณหภูมิพื้นที่ของคุณ</div>
+          <div class="text-[11px] text-slate-400 mb-2">อุณหภูมิพื้นที่ของคุณ</div>
           <div class="flex items-center justify-between">
             <span id="tempValue" class="text-xl font-bold text-white tabular-nums">--.-</span>
             <span class="text-[11px] text-slate-500">°C</span>
           </div>
-          <div id="tempLocation" class="text-[10px] text-slate-500 mt-1">กำลังระบุตำแหน่ง...</div>
+          <div id="tempLocation" class="text-[10px] text-slate-500 mt-1">กำลังค้นหาตำแหน่ง...</div>
         </div>
 
         <!-- Countdown / next schedule -->
         <div class="glass-inset rounded-2xl p-4 flex flex-col justify-center">
-          <div class="text-[11px] text-slate-400 mb-2">⏱️ นับถอยหลัง / กำหนดการ</div>
+          <div class="text-[11px] text-slate-400 mb-2">เวลานับถอยหลัง / กำหนดการ</div>
           <div id="valveTimerText" class="text-xl font-bold text-white tabular-nums">--:--</div>
-          <div id="valveTimerSub" class="text-[10px] text-slate-500">ยังไม่มีเวลานับถอยหลัง</div>
+          <div id="valveTimerSub" class="text-[10px] text-slate-500">ไม่มีเวลานับถอยหลัง</div>
         </div>
       </div>
 
       <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div class="text-sm text-slate-400">
-          <span id="modeHint" class="font-bold text-slate-200">✋ โหมดแมนนวล</span>
-          <span class="text-slate-500"> · ควบคุมวาล์วได้ด้วยตนเอง</span>
+          <span id="modeHint" class="font-bold text-slate-200">โหมดแมนนวล</span>
+          <span class="text-slate-500"> · ควบคุมวาล์วได้โดยตรง</span>
         </div>
-        <button id="btnResetDemo" onclick="resetDemoData()" class="text-[11px] font-bold px-3 py-2 rounded-lg bg-slate-500/15 text-slate-400 border border-slate-500/30 hover:bg-slate-500/25 transition-all">🔄 รีเซ็ตข้อมูล</button>
+        <button id="btnResetDemo" onclick="resetDemoData()" class="text-[11px] font-bold px-3 py-2 rounded-lg bg-slate-500/15 text-slate-400 border border-slate-500/30 hover:bg-slate-500/25 transition-all">รีเซ็ตข้อมูล</button>
       </div>
     </section>
 
     <!-- ================= MANUAL CONTROL CARD ================= -->
-    <section class="glass rounded-2xl p-4 sm:p-5 mb-4">
+    <section id="manualPanel" class="glass rounded-2xl p-4 sm:p-5 mb-4">
       <div class="flex items-center justify-between mb-1">
-        <h2 class="font-bold text-white flex items-center gap-2"><span>🎛️</span> ควบคุมแมนนวล</h2>
+        <h2 class="font-bold text-white flex items-center gap-2">การควบคุมแมนนวล</h2>
         <span id="manualHint" class="text-[11px] text-slate-500">พร้อมใช้งาน</span>
       </div>
-      <p class="text-[11px] text-slate-500 mb-4">เปิด-ปิดวาล์วน้ำ และตั้งเวลานับถอยหลังเพื่อปิดวาล์วอัตโนมัติ</p>
+      <p class="text-[11px] text-slate-500 mb-4">เปิด-ปิดวาล์ว และตั้งเวลานับถอยหลังเพื่อปิดวาล์วอัตโนมัติ</p>
 
       <div class="glass-inset rounded-2xl p-4 mb-4 flex items-center justify-between">
         <div>
-          <div class="text-sm font-bold text-white">💦 วาล์วน้ำหลัก</div>
-          <div id="manualValveStatus" class="text-[11px] text-slate-500">กดสวิตช์เพื่อเปิด/ปิด</div>
+          <div class="text-sm font-bold text-white">วาล์วน้ำหลัก</div>
+          <div id="manualValveStatus" class="text-[11px] text-slate-500">กดสวิตช์เพื่อเปิด-ปิด</div>
         </div>
         <label class="switch switch-blue">
           <input type="checkbox" id="manualValveToggle" onchange="toggleManualValve()" />
@@ -303,25 +303,25 @@
       <!-- Countdown controls -->
       <div class="glass-inset rounded-2xl p-4">
         <div class="flex items-center justify-between mb-3">
-          <div class="text-sm font-bold text-white">⏱️ ตั้งเวลานับถอยหลัง</div>
+          <div class="text-sm font-bold text-white">ตั้งเวลานับถอยหลัง</div>
           <span class="badge" style="background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.35); color:#7dd3fc;">ปิดวาล์วอัตโนมัติ</span>
         </div>
 
         <div id="countdownForm">
           <div class="flex items-center gap-2 mb-3 flex-wrap">
-            <span class="text-[11px] text-slate-400">ตั้งเปิดทิ้งไว้</span>
+            <span class="text-[11px] text-slate-400">เปิดวาล์วทิ้งไว้</span>
             <input type="number" id="countdownMinutes" class="count-input" min="1" max="1440" value="15" />
-            <span class="text-[11px] text-slate-400">นาที แล้วปิดเอง</span>
+            <span class="text-[11px] text-slate-400">นาที แล้วปิดอัตโนมัติ</span>
           </div>
           <div class="flex items-center gap-2 mb-3 flex-wrap">
-            <span class="text-[11px] text-slate-400">ลัด:</span>
+            <span class="text-[11px] text-slate-400">ทางลัด:</span>
             <button onclick="quickCountdown(5)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">5 นาที</button>
             <button onclick="quickCountdown(10)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">10 นาที</button>
             <button onclick="quickCountdown(15)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">15 นาที</button>
             <button onclick="quickCountdown(30)" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/40 hover:bg-sky-400/25 transition-all">30 นาที</button>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
-            <button id="btnStartCountdown" onclick="startCountdown()" class="text-sm font-bold px-5 py-2.5 rounded-xl bg-teal-400 text-slate-900 shadow-lg glow-teal hover:bg-teal-300 transition-all">▶ เปิดพร้อมจับเวลา</button>
+            <button id="btnStartCountdown" onclick="startCountdown()" class="text-sm font-bold px-5 py-2.5 rounded-xl bg-teal-400 text-slate-900 shadow-lg glow-teal hover:bg-teal-300 transition-all">เปิดพร้อมจับเวลา</button>
             <button id="btnCancelCountdown" onclick="cancelCountdown()" class="text-sm font-bold px-5 py-2.5 rounded-xl bg-slate-500/15 text-slate-400 border border-slate-500/30 hover:bg-slate-500/25 transition-all">ยกเลิก</button>
           </div>
         </div>
@@ -329,7 +329,7 @@
         <div id="countdownRunning" class="hidden">
           <div class="text-center py-2">
             <div id="countdownDisplay" class="text-4xl font-bold text-sky-300 tabular-nums">15:00</div>
-            <div class="text-[11px] text-slate-500 mt-1">วาล์วเปิดอยู่ · ปิดอัตโนมัติเมื่อหมดเวลา</div>
+            <div class="text-[11px] text-slate-500 mt-1">วาล์วเปิดอยู่ · จะปิดอัตโนมัติเมื่อหมดเวลา</div>
             <div class="mt-3 h-2 rounded-full overflow-hidden" style="background: rgba(148,163,184,0.2);">
               <div id="countdownProgress" class="h-full rounded-full transition-all duration-1000" style="width:100%; background: linear-gradient(90deg,#38bdf8,#2dd4bf);"></div>
             </div>
@@ -339,15 +339,14 @@
     </section>
 
     <!-- ================= SCHEDULE SETUP CARD ================= -->
-    <section class="glass rounded-2xl p-4 sm:p-5">
+    <section id="autoPanel" class="glass rounded-2xl p-4 sm:p-5">
       <div class="flex items-center justify-between mb-1">
-        <h2 class="font-bold text-white flex items-center gap-2"><span>⏰</span> ตั้งเวลาอัตโนมัติ</h2>
-        <span class="badge text-teal-300" style="background: rgba(45,212,191,0.15); border: 1px solid rgba(45,212,191,0.35);">Smart Schedule</span>
+        <h2 class="font-bold text-white flex items-center gap-2">ตารางเวลาอัตโนมัติ</h2>
+        <span class="badge text-teal-300" style="background: rgba(45,212,191,0.15); border: 1px solid rgba(45,212,191,0.35);">กำหนดการอัตโนมัติ</span>
       </div>
-      <p class="text-[11px] text-slate-500 mb-2">ตั้งเวลาเปิด-ปิดวาล์ว เลือกวันทำงาน และเปิดใช้งานแต่ละตารางได้อิสระ</p>
+      <p class="text-[11px] text-slate-500 mb-2">ตั้งเวลาเปิด-ปิด เลือกวันทำงาน และเปิดใช้งานแต่ละตารางได้อิสระ</p>
 
       <div id="nextScheduleBanner" class="glass-inset rounded-xl px-4 py-2 mb-4 flex items-center gap-2 text-sm">
-        <span>🔮</span>
         <span id="nextScheduleText" class="text-slate-300">กำลังคำนวณกำหนดการถัดไป...</span>
       </div>
 
@@ -358,7 +357,7 @@
 
     <!-- ================= FOOTER ================= -->
     <footer class="mt-6 text-center text-[11px] text-slate-600">
-      Smart Water Valve Controller v2.0 • Real-time (WebSocket / REST + Mock) • รองรับ Android WebView Bridge
+      ระบบควบคุมวาล์วน้ำอัตโนมัติ v2.0 • ทำงานแบบเรียลไทม์ (MQTT / WebSocket / REST) • Android WebView Bridge
     </footer>
   </div>
 
@@ -523,7 +522,7 @@
       State.espOnline = true;
       State.connType = 'mqtt';
       UI.updateEspStatus();
-      UI.showToast('🔌 เชื่อมต่อ MQTT (HiveMQ) สำเร็จ', 1800);
+      UI.showToast('เชื่อมต่อ MQTT แล้ว (HiveMQ)', 1800);
       // sync โหมด + ตารางเวลาให้ ESP32 ทุกครั้งที่ (re)connect
       sendModeToEsp();
       syncSchedulesToEsp();
@@ -535,12 +534,12 @@
       State.espOnline = false;
       State.connType = 'none';
       UI.updateEspStatus();
-      if (msg && msg.error) UI.showToast('⚠️ MQTT ตัดการเชื่อมต่อ: ' + msg.error);
+      if (msg && msg.error) UI.showToast('ตัดการเชื่อมต่อ MQTT: ' + msg.error);
     };
 
     window.onMqttError = function (json) {
       const msg = normalizePayload(json);
-      if (msg && msg.error) UI.showToast('❌ MQTT error: ' + msg.error);
+      if (msg && msg.error) UI.showToast('ข้อผิดพลาด MQTT: ' + msg.error);
     };
 
     window.onCommandResult = function (json) {
@@ -553,17 +552,17 @@
 
     window.onCommandError = function (json) {
       const msg = normalizePayload(json);
-      UI.showToast('❌ ' + (msg && msg.error ? msg.error : 'คำสั่งไม่สำเร็จ'));
+      UI.showToast('เกิดข้อผิดพลาด: ' + (msg && msg.error ? msg.error : 'ส่งคำสั่งไม่สำเร็จ'));
     };
 
     window.onNotificationResult = function (json) {
       const msg = normalizePayload(json);
-      if (msg && msg.sent) UI.showToast('✅ ' + (msg.title || 'แจ้งเตือนสำเร็จ'));
+      if (msg && msg.sent) UI.showToast(msg.title || 'ส่งการแจ้งเตือนแล้ว');
     };
 
     window.onNotificationError = function (json) {
       const msg = normalizePayload(json);
-      UI.showToast('❌ ' + (msg && msg.error ? msg.error : 'ส่งแจ้งเตือนไม่สำเร็จ'));
+      UI.showToast('เกิดข้อผิดพลาด: ' + (msg && msg.error ? msg.error : 'ส่งการแจ้งเตือนไม่สำเร็จ'));
     };
 
     /* ===================================================================
@@ -590,7 +589,7 @@
       autoCommanded: null,     // สถานะล่าสุดที่โหมดอัตโนมัติสั่ง ('open'|'close'|null)
       valveOn: false,
       temperature: null,       // °C จากพื้นที่ผู้ใช้ (Geolocation)
-      tempLocation: 'กำลังระบุตำแหน่ง...',
+        tempLocation: 'Locating...',
       tempSource: 'mock',      // 'live' | 'mock'
       countdown: {
         active: false,
@@ -643,18 +642,24 @@
           ? 'bg-sky-400 text-slate-900 shadow-lg glow-blue'
           : 'bg-slate-800/60 text-slate-400');
 
+        // ซ่อนแผงควบคุมที่ไม่ตรงกับโหมด (แมนนวล -> ซ่อน Auto panel, ออโต้ -> ซ่อน Manual panel)
+        const manualPanel = document.getElementById('manualPanel');
+        const autoPanel = document.getElementById('autoPanel');
+        if (manualPanel) manualPanel.style.display = isAuto ? 'none' : '';
+        if (autoPanel) autoPanel.style.display = isAuto ? '' : 'none';
+
         const hint = document.getElementById('modeHint');
         if (isAuto) {
-          hint.innerHTML = '🔄 <span class="font-bold text-teal-300">โหมดอัตโนมัติ</span>';
+          hint.innerHTML = '<span class="font-bold text-teal-300">โหมดอัตโนมัติ</span>';
         } else {
-          hint.innerHTML = '✋ <span class="font-bold text-sky-300">โหมดแมนนวล</span>';
+          hint.innerHTML = '<span class="font-bold text-sky-300">โหมดแมนนวล</span>';
         }
 
         const mhint = document.getElementById('manualHint');
         if (isAuto) {
-          mhint.textContent = '🔄 โหมดอัตโนมัติ - ควบคุมด้วยตารางเวลา';
+          mhint.textContent = 'โหมดอัตโนมัติ - ควบคุมตามตารางเวลา';
         } else {
-          mhint.textContent = '⚠️ คำเตือน: ถ้าค้างโหมดแมนนวลไว้ ตารางเวลาอัตโนมัติจะไม่ทำงาน';
+          mhint.textContent = 'คำเตือน: ตารางเวลาอัตโนมัติจะไม่ทำงานในโหมดแมนนวล';
         }
       },
 
@@ -667,15 +672,15 @@
           dot.className = 'w-2.5 h-2.5 rounded-full bg-teal-400 pulse-dot';
           statusText.textContent = 'ESP32 • ออนไลน์';
           statusText.className = 'text-xs font-bold text-teal-300';
-          detail.textContent = State.connType === 'ws' ? 'WebSocket เชื่อมต่อแล้ว'
-            : State.connType === 'mqtt' ? 'MQTT (HiveMQ) เชื่อมต่อแล้ว'
-            : 'REST เชื่อมต่อแล้ว';
+          detail.textContent = State.connType === 'ws' ? 'เชื่อมต่อ WebSocket'
+            : State.connType === 'mqtt' ? 'เชื่อมต่อ MQTT (HiveMQ)'
+            : 'เชื่อมต่อ REST';
           card.style.borderColor = 'rgba(45,212,191,0.4)';
         } else {
           dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
           statusText.textContent = 'ESP32 • ออฟไลน์';
           statusText.className = 'text-xs font-bold text-slate-400';
-          detail.textContent = State.connType === 'mock' ? 'ใช้ข้อมูลจำลอง (Mock)' : 'กำลังเชื่อมต่อ...';
+          detail.textContent = State.connType === 'mock' ? 'ใช้ข้อมูลจำลอง' : 'กำลังเชื่อมต่อ...';
           card.style.borderColor = 'rgba(148,163,184,0.25)';
         }
       },
@@ -702,7 +707,7 @@
           badge.style.background = 'rgba(45,212,191,0.2)';
           badge.style.border = '1px solid rgba(45,212,191,0.5)';
           badge.style.color = '#5eead4';
-          manualStatus.textContent = 'วาล์วเปิดอยู่ · ปล่อยน้ำ';
+          manualStatus.textContent = 'วาล์วเปิดอยู่ · น้ำไหล';
         } else {
           icon.textContent = '🚱';
           icon.style.background = 'rgba(148,163,184,0.15)';
@@ -711,7 +716,7 @@
           iconHeader.className = 'w-11 h-11 rounded-xl flex items-center justify-center text-2xl valve-icon-wrap';
           statusText.textContent = 'วาล์วปิดอยู่';
           statusText.className = 'mt-2 text-sm font-bold text-slate-400';
-          statusSub.textContent = 'ไม่มีการปล่อยน้ำ';
+          statusSub.textContent = 'น้ำไม่ไหล';
           badge.textContent = 'วาล์วปิด';
           badge.style.background = 'rgba(100,116,139,0.2)';
           badge.style.border = '1px solid rgba(148,163,184,0.35)';
@@ -728,7 +733,7 @@
         const timerSub = document.getElementById('valveTimerSub');
         if (State.countdown.active) {
           timerText.textContent = formatCountdown(State.countdown.remainingSeconds);
-          timerSub.textContent = 'นับถอยหลังเพื่อปิดวาล์ว';
+          timerSub.textContent = 'นับถอยหลังเพื่อปิดอัตโนมัติ';
           timerText.className = 'text-xl font-bold text-sky-300 tabular-nums';
         } else if (State.nextSchedule) {
           timerText.textContent = State.nextSchedule.shortLabel;
@@ -736,7 +741,7 @@
           timerText.className = 'text-xl font-bold text-teal-300 tabular-nums';
         } else {
           timerText.textContent = '--:--';
-          timerSub.textContent = 'ยังไม่มีกำหนดการถัดไป';
+          timerSub.textContent = 'ไม่มีกำหนดการถัดไป';
           timerText.className = 'text-xl font-bold text-white tabular-nums';
         }
       },
@@ -746,7 +751,7 @@
         const locEl = document.getElementById('tempLocation');
         if (!tempEl || !locEl) return;
         tempEl.textContent = State.temperature !== null ? State.temperature.toFixed(1) : '--.-';
-        locEl.textContent = (State.tempSource === 'live' ? '📍 ' : '🔎 ') + State.tempLocation;
+        locEl.textContent = State.tempLocation;
       },
 
       updateCountdownForm() {
@@ -897,13 +902,13 @@
       const toggle = document.getElementById('manualValveToggle');
       if (State.mode === 'auto') {
         toggle.checked = State.valveOn;
-        Bridge.showToast('⚠️ กรุณาสลับเป็นโหมดแมนนวลก่อนควบคุมวาล์ว');
+        Bridge.showToast('กรุณาสลับเป็นโหมดแมนนวลก่อนควบคุมวาล์ว');
         Bridge.triggerVibration(50);
         return;
       }
       setValveState(toggle.checked);
       Bridge.triggerVibration(30);
-      Bridge.showToast(State.valveOn ? '💦 เปิดวาล์วน้ำ' : '🚱 ปิดวาล์วน้ำ');
+      Bridge.showToast(State.valveOn ? 'เปิดวาล์วแล้ว' : 'ปิดวาล์วแล้ว');
     }
 
     /* ===================================================================
@@ -916,14 +921,14 @@
 
     function startCountdown() {
       if (State.mode === 'auto') {
-        Bridge.showToast('⚠️ กรุณาสลับเป็นโหมดแมนนวลก่อนตั้งเวลา');
+        Bridge.showToast('กรุณาสลับเป็นโหมดแมนนวลก่อนตั้งเวลานับถอยหลัง');
         Bridge.triggerVibration(50);
         return;
       }
       const input = document.getElementById('countdownMinutes');
       const minutes = parseInt(input.value, 10);
       if (!minutes || minutes <= 0 || minutes > 1440) {
-        Bridge.showToast('❌ กรุณากรอกจำนวนนาทีให้ถูกต้อง (1-1440)');
+        Bridge.showToast('กรุณากรอกจำนวนนาทีที่ถูกต้อง (1-1440)');
         Bridge.triggerVibration(60);
         return;
       }
@@ -939,7 +944,7 @@
       if (!State.valveOn) setValveState(true);
       saveState();
 
-      Bridge.showToast('⏱️ เปิดวาล์วและจับเวลา ' + minutes + ' นาที');
+      Bridge.showToast('เปิดวาล์ว ' + minutes + ' นาที');
       Bridge.triggerVibration(30);
       UI.updateCountdownForm();
       UI.updateValveUI();
@@ -963,7 +968,7 @@
         UI.updateValveUI();
         saveState();
         sendCommandToEsp({ type: 'valve', action: 'off' });
-        Bridge.showToast('✅ หมดเวลา ปิดวาล์วน้ำอัตโนมัติ');
+        Bridge.showToast('หมดเวลา - ปิดวาล์วอัตโนมัติแล้ว');
         Bridge.triggerVibration(40);
         UI.updateCountdownForm();
         UI.updateValveUI();
@@ -984,7 +989,7 @@
       State.countdown.remainingSeconds = 0;
       State.countdown.endTime = null;
       saveState();
-      Bridge.showToast('⏹️ ยกเลิกการจับเวลา');
+      Bridge.showToast('ยกเลิกการนับถอยหลังแล้ว');
       Bridge.triggerVibration(20);
       UI.updateCountdownForm();
       UI.updateValveUI();
@@ -1071,7 +1076,7 @@
       if (next) {
         el.textContent = 'กำหนดการถัดไป: ' + next.sch.name + ' (เปิด ' + next.shortLabel + ') · ' + DAYS_FULL[next.dayIndex];
       } else {
-        el.textContent = 'ไม่มีกำหนดการที่เปิดใช้งาน';
+        el.textContent = 'ไม่มีตารางเวลาที่เปิดใช้งาน';
       }
       UI.updateValveTimerText();
     }
@@ -1117,17 +1122,17 @@
           </div>
           <div class="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label class="text-[10px] font-bold text-slate-500 block mb-1">⏱️ เวลาเปิด (Start)</label>
+              <label class="text-[10px] font-bold text-slate-500 block mb-1">เวลาเปิด</label>
               <input type="time" id="scheduleStart-${sch.id}" value="${sch.start}" onchange="updateScheduleTime(${sch.id})" />
             </div>
             <div>
-              <label class="text-[10px] font-bold text-slate-500 block mb-1">⏹️ เวลาปิด (End)</label>
+              <label class="text-[10px] font-bold text-slate-500 block mb-1">เวลาปิด</label>
               <input type="time" id="scheduleEnd-${sch.id}" value="${sch.end}" onchange="updateScheduleTime(${sch.id})" />
             </div>
           </div>
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <div class="flex items-center gap-1.5 flex-wrap">${daysHtml}</div>
-            <button onclick="deleteSchedule(${sch.id})" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 transition-all">🗑️ ลบ</button>
+            <button onclick="deleteSchedule(${sch.id})" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 transition-all">ลบ</button>
           </div>
         `;
 
@@ -1146,7 +1151,7 @@
       btn.id = 'addScheduleBtn';
       btn.onclick = addSchedule;
       btn.className = 'mt-3 w-full rounded-2xl border-2 border-dashed border-slate-500/40 text-slate-400 py-3 text-sm font-bold hover:border-teal-400/60 hover:text-teal-300 transition-all';
-      btn.innerHTML = '➕ เพิ่มตารางเวลาใหม่';
+      btn.innerHTML = 'เพิ่มตารางเวลา';
       list.appendChild(btn);
     }
 
@@ -1178,7 +1183,7 @@
       sch.end = endEl.value || sch.end;
       syncSchedulesToEsp();
       saveState();
-      Bridge.showToast('✅ อัปเดตเวลา ' + sch.name + ': ' + sch.start + ' - ' + sch.end);
+      Bridge.showToast('อัปเดต ' + sch.name + ': ' + sch.start + ' - ' + sch.end);
       Bridge.triggerVibration(20);
       updateNextSchedule();
       evaluateAutoMode();
@@ -1190,7 +1195,7 @@
       sch.enabled = !sch.enabled;
       syncSchedulesToEsp();
       saveState();
-      Bridge.showToast(sch.enabled ? '▶️ เปิดใช้งาน ' + sch.name : '⏸️ ปิดใช้งาน ' + sch.name);
+      Bridge.showToast(sch.enabled ? 'เปิดใช้งาน ' + sch.name : 'ปิดใช้งาน ' + sch.name);
       Bridge.triggerVibration(30);
       renderSchedules();
       updateNextSchedule();
@@ -1203,7 +1208,7 @@
       State.schedules = State.schedules.filter((s) => s.id !== scheduleId);
       syncSchedulesToEsp();
       saveState();
-      Bridge.showToast('🗑️ ลบ ' + sch.name + ' แล้ว');
+      Bridge.showToast('ลบ ' + sch.name + ' แล้ว');
       Bridge.triggerVibration(40);
       renderSchedules();
       updateNextSchedule();
@@ -1222,7 +1227,7 @@
       });
       syncSchedulesToEsp();
       saveState();
-      Bridge.showToast('➕ เพิ่มตารางเวลาใหม่แล้ว');
+      Bridge.showToast('เพิ่มตารางเวลาใหม่แล้ว');
       Bridge.triggerVibration(30);
       renderSchedules();
       updateNextSchedule();
@@ -1243,9 +1248,9 @@
       sendModeToEsp();
 
       if (mode === 'manual') {
-        Bridge.showToast('✋ โหมดแมนนวล — ตารางเวลาอัตโนมัติจะไม่ทำงานจนกว่าจะสลับกลับ', 4000);
+        Bridge.showToast('โหมดแมนนวล - ตารางเวลาอัตโนมัติจะไม่ทำงานจนกว่าจะกลับไปโหมดอัตโนมัติ', 4000);
       } else {
-        Bridge.showToast('🔄 สลับเป็นโหมดอัตโนมัติ');
+        Bridge.showToast('สลับเป็นโหมดอัตโนมัติแล้ว');
       }
       Bridge.triggerVibration(30);
 
@@ -1321,7 +1326,7 @@
         State.temperature = 28 + Math.random() * 8; // 28-36 °C
       }
       State.tempSource = 'mock';
-      State.tempLocation = 'พื้นที่ของคุณ (Mock)';
+      State.tempLocation = 'พื้นที่ของคุณ (จำลอง)';
       UI.updateTemperatureUI();
     }
 
@@ -1367,7 +1372,7 @@
         reconnectAttempts = 0;
         UI.updateEspStatus();
         sendCommandToEsp({ type: 'hello', client: 'webui' });
-        Bridge.showToast('🔌 เชื่อมต่อ ESP32 สำเร็จ (WebSocket)');
+        Bridge.showToast('เชื่อมต่อ ESP32 แล้ว (WebSocket)');
         Bridge.triggerVibration(30);
       };
 
@@ -1429,7 +1434,7 @@
       }
 
       if (data.type === 'ack') {
-        Bridge.showToast('📡 ESP32: ' + (data.message || 'คำสั่งสำเร็จ'));
+        Bridge.showToast('ESP32: ' + (data.message || 'คำสั่งสำเร็จ'));
       }
     }
 
@@ -1497,7 +1502,7 @@
       UI.updateSchedulesUI();
       syncSchedulesToEsp();
       sendModeToEsp();
-      Bridge.showToast('🔄 รีเซ็ตข้อมูลเรียบร้อย');
+      Bridge.showToast('รีเซ็ตข้อมูลแล้ว');
       Bridge.triggerVibration(40);
     }
 
@@ -1545,7 +1550,7 @@
       if (State.forceValveOff) {
         State.forceValveOff = false;
         sendCommandToEsp({ type: 'valve', action: 'off' });
-        Bridge.showToast('⏹️ หมดเวลาไปแล้วตอนปิดแอพ → ปิดวาล์วอัตโนมัติ');
+        Bridge.showToast('หมดเวลาแล้วตอนปิดแอพ - ปิดวาล์วอัตโนมัติแล้ว');
         Bridge.triggerVibration(40);
       }
 
@@ -1555,7 +1560,7 @@
         updateNextSchedule();
       }, 30000);
 
-      Bridge.showToast('💧 ระบบพร้อมใช้งาน', 1800);
+      Bridge.showToast('ระบบพร้อมใช้งาน', 1800);
     }
 
     document.addEventListener('DOMContentLoaded', init);
