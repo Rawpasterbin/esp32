@@ -1,0 +1,20 @@
+name = "water-valve-scheduler"
+main = "worker/schedule-worker.js"
+compatibility_date = "2024-09-01"
+
+# KV: ต้องสร้างก่อน แล้วใส่ id ลงไป
+#   wrangler kv namespace create SCHEDULE_KV
+[[kv_namespaces]]
+binding = "SCHEDULE_KV"
+id = "REPLACE_WITH_KV_ID"
+
+# Cron ทุก 1 นาที
+[triggers]
+crons = ["* * * * *"]
+
+# ตัวแปร (ไม่ควรมี secret อยู่ในไฟล์นี้ ถ้าเป็นจริงควรใช้ wrangler secret put)
+[vars]
+MQTT_WS_URL = "wss://74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud:8084/mqtt"
+MQTT_CLIENT_ID = "cf_worker_scheduler"
+MQTT_USER = "test"
+MQTT_PASS = "test1234"

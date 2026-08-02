@@ -291,8 +291,8 @@ void loop() {
     autoCheck();
   }
 
-  // publish สถานะเป็นระยะ (ทุก 30 วิ) ให้แอปเห็นว่า ESP32 ยังอยู่ + สถานะจริง
-  if (millis() - lastStatusPublish >= 30000) {
+  // publish สถานะเป็นระยะ (ทุก 60 วิ) ให้แอปเห็นว่า ESP32 ยังอยู่ + สถานะจริง
+  if (millis() - lastStatusPublish >= 60000) {
     lastStatusPublish = millis();
     publishStatus();
   }

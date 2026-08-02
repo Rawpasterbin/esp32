@@ -576,6 +576,8 @@
       wsUrl: 'ws://192.168.4.1:81/ws',
       apiUrl: 'http://192.168.4.1/api/status',
       apiPostUrl: 'http://192.168.4.1/api/command',
+      // Cloudflare Worker: เก็บตารางเวลา + cron สั่งงานตามเวลา (ใส่ URL หลัง deploy)
+      apiWorkerUrl: '', // เช่น 'https://water-valve-scheduler.<account>.workers.dev/config'
       wsEnabled: true,
       mockEnabled: true,
       mockInterval: 2000,
@@ -1481,12 +1483,30 @@
     // ส่งโหมด (auto/manual) ให้ ESP32 เก็บไว้ใน NVS
     function sendModeToEsp() {
       sendCommandToEsp({ type: 'mode', mode: State.mode });
+      syncToCloudflare(); // Cloudflare ต้องรู้โหมดด้วย (โหมด manual -> cron ไม่สั่ง)
     }
 
     // ส่งตารางเวลาทั้งหมดให้ ESP32 เก็บไว้เอง
     // -> ESP32 เปิด/ปิดวาล์วตามตารางได้เอง แม้แอปถูกปิด
     function syncSchedulesToEsp() {
       sendCommandToEsp({ type: 'schedule', schedules: State.schedules });
+      syncToCloudflare(); // ส่งให้ Cloudflare เก็บไว้สั่งงานตามเวลา
+    }
+
+    // ส่ง {mode, schedules} ไป Cloudflare Worker เพื่อให้ cron ตรวจเวลาสั่งงานเอง
+    // (Worker ต้อง deploy แล้ว + ใส่ URL ลงใน Config.apiWorkerUrl)
+    function syncToCloudflare() {
+      const workerUrl = Config.apiWorkerUrl;
+      if (!workerUrl) return;
+      try {
+        fetch(workerUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: State.mode, schedules: State.schedules })
+        }).catch(() => { /* offline หรือ Worker ยังไม่ deploy -> ข้ามไป */ });
+      } catch (e) {
+        /* ignore */
+      }
     }
 
     function fallbackToMock() {
