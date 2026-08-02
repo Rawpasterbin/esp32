@@ -14,6 +14,20 @@
 const CFG_KEY = 'config';
 const STATE_KEY = 'state';
 
+// CORS: แอปวิ่งบน pages.dev ต้อง POST ข้าม origin มาที่ Worker ได้
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+function jsonResponse(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'content-type': 'application/json', ...CORS_HEADERS },
+  });
+}
+
 /* ===================================================================
  * การคำนวณตารางเวลา (UTC+7, จันทร์=0 ... อาทิตย์=6 ตรงกับแอป)
  * =================================================================== */
@@ -80,6 +94,11 @@ async function runCron(env) {
 async function handleRequest(request, env) {
   const url = new URL(request.url);
 
+  // OPTIONS preflight (POST + Content-Type: application/json ข้าม origin)
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
   if (request.method === 'POST' && url.pathname === '/config') {
     try {
       const body = await request.json();
@@ -91,11 +110,11 @@ async function handleRequest(request, env) {
           updatedAt: new Date().toISOString(),
         };
         await env.SCHEDULE_KV.put(CFG_KEY, JSON.stringify(cfg));
-        return new Response(JSON.stringify({ ok: true, stored: cfg }), { headers: { 'content-type': 'application/json' } });
+        return jsonResponse({ ok: true, stored: cfg });
       }
-      return new Response('{"ok":false,"error":"bad body"}', { status: 400, headers: { 'content-type': 'application/json' } });
+      return jsonResponse({ ok: false, error: 'bad body' }, 400);
     } catch (e) {
-      return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 400, headers: { 'content-type': 'application/json' } });
+      return jsonResponse({ ok: false, error: e.message }, 400);
     }
   }
 
@@ -103,12 +122,10 @@ async function handleRequest(request, env) {
     const cfg = await env.SCHEDULE_KV.get(CFG_KEY, 'json');
     const state = await env.SCHEDULE_KV.get(STATE_KEY, 'json');
     const { minutesInDay, dayOfWeek } = thaiMinutes(new Date());
-    return new Response(JSON.stringify({ ok: true, nowMin: minutesInDay, dayOfWeek, config: cfg, state }), {
-      headers: { 'content-type': 'application/json' },
-    });
+    return jsonResponse({ ok: true, nowMin: minutesInDay, dayOfWeek, config: cfg, state });
   }
 
-  return new Response('not found', { status: 404 });
+  return jsonResponse({ ok: false, error: 'not found' }, 404);
 }
 
 /* ===================================================================
