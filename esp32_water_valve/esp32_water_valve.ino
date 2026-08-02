@@ -29,8 +29,9 @@ const char* WORKER_URL = "https://water-valve-scheduler.czqwertyyy.workers.dev/"
 
 // ความถี่ตรวจตารางเวลา (10 วิ)
 const unsigned long SCHEDULE_CHECK_MS = 10000;
-// ความถี่ดึง config จาก Worker (5 วิ - เร็วพอให้คำสั่ง manual ตอบสนอง)
-const unsigned long CONFIG_FETCH_MS = 5000;
+// ความถี่ดึง config จาก Worker - เร็วในโหมด manual (ตอบสนองคำสั่ง), ช้าใน auto (ตารางรันในเครื่องแล้ว)
+const unsigned long CONFIG_FETCH_MS_MANUAL = 5000;
+const unsigned long CONFIG_FETCH_MS_AUTO = 30000;
 
 WiFiClientSecure espClient;
 WiFiClientSecure httpsClient;
@@ -392,8 +393,9 @@ void loop() {
     publishStatus();
   }
 
-  // ดึงตารางล่าสุดจาก Worker เป็นระยะ (ทุก 60 วิ) - กันตารางหายถ้าอัปเดตตอน ESP32 offline
-  if (millis() - lastConfigFetch >= CONFIG_FETCH_MS) {
+  // ดึงตาราง/คำสั่งล่าสุดจาก Worker - manual poll เร็ว, auto poll ช้า (ประหยัดเน็ต)
+  unsigned long fetchMs = (valveMode == "manual") ? CONFIG_FETCH_MS_MANUAL : CONFIG_FETCH_MS_AUTO;
+  if (millis() - lastConfigFetch >= fetchMs) {
     lastConfigFetch = millis();
     fetchConfig();
   }
