@@ -14,7 +14,7 @@ crons = ["* * * * *"]
 
 # ตัวแปร (ไม่ควรมี secret อยู่ในไฟล์นี้ ถ้าเป็นจริงควรใช้ wrangler secret put)
 [vars]
-MQTT_WS_URL = "wss://74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud:8084/mqtt"
+MQTT_WS_URL = "wss://74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud:8884/mqtt"
 MQTT_CLIENT_ID = "cf_worker_scheduler"
 MQTT_USER = "test"
 MQTT_PASS = "test1234"

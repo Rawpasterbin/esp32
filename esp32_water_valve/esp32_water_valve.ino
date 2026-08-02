@@ -1,6 +1,7 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include <Preferences.h>
 #include <time.h>
 
@@ -23,10 +24,16 @@ const char* MODE_TOPIC = "myhouse/valve/mode";
 const char* SCHEDULE_TOPIC = "myhouse/valve/schedule";
 const char* STATUS_TOPIC = "myhouse/valve/status";
 
+// Cloudflare Worker = แหล่งความจริงของตาราง (แอปอัปเดตผ่าน HTTPS, ESP32 ดึงทุก 60 วิ)
+const char* WORKER_URL = "https://water-valve-scheduler.czqwertyyy.workers.dev/";
+
 // ความถี่ตรวจตารางเวลา (10 วิ)
 const unsigned long SCHEDULE_CHECK_MS = 10000;
+// ความถี่ดึง config จาก Worker (60 วิ)
+const unsigned long CONFIG_FETCH_MS = 60000;
 
 WiFiClientSecure espClient;
+WiFiClientSecure httpsClient;
 PubSubClient mqtt(espClient);
 Preferences prefs;
 
@@ -36,6 +43,7 @@ String schedulesJson = "";     // JSON array ของตารางเวล�
 
 unsigned long lastScheduleCheck = 0;
 unsigned long lastStatusPublish = 0;
+unsigned long lastConfigFetch = 0;
 
 // นับจำนวนตารางเวลาที่อยู่ใน JSON (นับเครื่องหมาย { ระดับรายการ)
 int scheduleCount() {
@@ -188,6 +196,60 @@ void autoCheck() {
   setValve(shouldOpen);
 }
 
+/* ============ Cloudflare Worker (แหล่งความจริงของตาราง) ============ */
+/* ดึง config จาก Worker -> อัปเดต mode + ตารางเวลาในเครื่อง (มีผลแม้แอปปิด)
+   Worker คืน: {"ok":true,"config":{"mode":...,"schedules":[...],"updatedAt":...},...} */
+void fetchConfig() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  httpsClient.setInsecure();
+  HTTPClient http;
+  if (!http.begin(httpsClient, WORKER_URL)) {
+    Serial.println("Worker: begin failed");
+    return;
+  }
+  http.setTimeout(10000);
+  int code = http.GET();
+  Serial.print("Worker: GET code=");
+  Serial.println(code);
+
+  if (code == 200) {
+    String resp = http.getString();
+
+    // ดึง "config":{ ... } มาทั้งก้อน
+    int cfgStart = resp.indexOf("\"config\":");
+    if (cfgStart >= 0) {
+      String cfgStr = resp.substring(cfgStart + 9); // ข้าม "config":
+      int depth = 0;
+      int cfgEnd = -1;
+      for (int j = 0; j < (int)cfgStr.length(); j++) {
+        if (cfgStr[j] == '{') depth++;
+        else if (cfgStr[j] == '}') { depth--; if (depth == 0) { cfgEnd = j + 1; break; } }
+      }
+      if (cfgEnd > 0) {
+        String cfgObj = cfgStr.substring(0, cfgEnd);
+        String m = extractField(cfgObj, "mode");
+        String sched = extractField(cfgObj, "schedules");
+
+        if (m == "auto" || m == "manual") {
+          if (valveMode != m) { valveMode = m; saveMode(); }
+        }
+        if (sched.length() > 0 && sched != "null") {
+          if (schedulesJson != sched) { schedulesJson = sched; saveSchedules(); }
+        }
+        Serial.print("Worker: mode="); Serial.print(valveMode);
+        Serial.print(" count="); Serial.println(scheduleCount());
+        autoCheck(); // ประเมินทันทีหลังได้ config ใหม่
+      }
+    } else {
+      Serial.println("Worker: no config field in response");
+    }
+  } else if (code < 0) {
+    Serial.println("Worker: fetch failed (network)");
+  }
+  http.end();
+}
+
 /* ============ MQTT ============ */
 void callback(char* topic, byte* payload, unsigned int length) {
   String message = "";
@@ -275,8 +337,9 @@ void loop() {
       mqtt.subscribe(CONTROL_TOPIC, 1); // QoS 1 เชื่อถือได้กว่า
       mqtt.subscribe(MODE_TOPIC, 1);
       mqtt.subscribe(SCHEDULE_TOPIC, 1);
-      publishStatus();       // แจ้งสถานะทันทีที่กลับมาเชื่อมต่อ
-      autoCheck();           // ใช้ตารางที่เก็บไว้ทันทีเมื่อกลับมาเชื่อมต่อ
+      fetchConfig();    // ดึงตารางล่าสุดจาก Worker ทันทีที่กลับมาเชื่อมต่อ
+      publishStatus();  // แจ้งสถานะทันทีที่กลับมาเชื่อมต่อ
+      autoCheck();      // ใช้ตารางที่เก็บไว้ทันทีเมื่อกลับมาเชื่อมต่อ
     } else {
       Serial.print(" failed, rc="); Serial.print(mqtt.state());
       Serial.println(" try again in 10 seconds");
@@ -295,5 +358,11 @@ void loop() {
   if (millis() - lastStatusPublish >= 60000) {
     lastStatusPublish = millis();
     publishStatus();
+  }
+
+  // ดึงตารางล่าสุดจาก Worker เป็นระยะ (ทุก 60 วิ) - กันตารางหายถ้าอัปเดตตอน ESP32 offline
+  if (millis() - lastConfigFetch >= CONFIG_FETCH_MS) {
+    lastConfigFetch = millis();
+    fetchConfig();
   }
 }
