@@ -29,8 +29,8 @@ const char* WORKER_URL = "https://water-valve-scheduler.czqwertyyy.workers.dev/"
 
 // ความถี่ตรวจตารางเวลา (10 วิ)
 const unsigned long SCHEDULE_CHECK_MS = 10000;
-// ความถี่ดึง config จาก Worker (60 วิ)
-const unsigned long CONFIG_FETCH_MS = 60000;
+// ความถี่ดึง config จาก Worker (5 วิ - เร็วพอให้คำสั่ง manual ตอบสนอง)
+const unsigned long CONFIG_FETCH_MS = 5000;
 
 WiFiClientSecure espClient;
 WiFiClientSecure httpsClient;
@@ -40,6 +40,7 @@ Preferences prefs;
 bool valveOn = false;
 String valveMode = "manual";   // "auto" | "manual" (บันทึกใน NVS)
 String schedulesJson = "";     // JSON array ของตารางเวลา (บันทึกใน NVS)
+String lastCmdAt = "";         // timestamp ของคำสั่ง open/close ล่าสุดที่ใช้แล้ว (กัน apply ซ้ำ)
 
 unsigned long lastScheduleCheck = 0;
 unsigned long lastStatusPublish = 0;
@@ -239,8 +240,34 @@ void fetchConfig() {
         }
         Serial.print("Worker: mode="); Serial.print(valveMode);
         Serial.print(" count="); Serial.println(scheduleCount());
-        autoCheck(); // ประเมินทันทีหลังได้ config ใหม่
       }
+
+      // คำสั่งเปิด/ปิดวาล์วจากแอป (โหมด manual) - ดึงผ่าน HTTPS เหมือนตาราง
+      int cmdStart = resp.indexOf("\"command\":");
+      if (cmdStart >= 0) {
+        String cmdStr = resp.substring(cmdStart + 10); // ข้าม "command":
+        int cdepth = 0;
+        int cmdEnd = -1;
+        for (int j = 0; j < (int)cmdStr.length(); j++) {
+          if (cmdStr[j] == '{') cdepth++;
+          else if (cmdStr[j] == '}') { cdepth--; if (cdepth == 0) { cmdEnd = j + 1; break; } }
+        }
+        if (cmdEnd > 0) {
+          String cmdObj = cmdStr.substring(0, cmdEnd);
+          String openStr = extractField(cmdObj, "open");
+          String atStr = extractField(cmdObj, "at");
+          if ((openStr == "true" || openStr == "false") && atStr.length() > 0 && atStr != lastCmdAt) {
+            lastCmdAt = atStr;
+            prefs.putString("cmdAt", lastCmdAt);
+            if (valveMode == "manual") { // โหมด auto -> ตารางเวลาบังคับเอง
+              setValve(openStr == "true");
+            }
+            Serial.print("Worker cmd: open="); Serial.print(openStr);
+            Serial.print(" at="); Serial.println(atStr);
+          }
+        }
+      }
+      autoCheck(); // ประเมินตาราง/สั่งทันทีหลังได้ config ใหม่
     } else {
       Serial.println("Worker: no config field in response");
     }
@@ -283,15 +310,18 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 
   // CONTROL_TOPIC: คำสั่งเปิด/ปิดจากแอป
-  if (message == "ON" || extractField(message, "cmd") == "open") {
+  // รองรับทั้ง {"cmd":"open"} และ {"type":"valve","action":"on"} (ฟอร์แมตจริงจากแอป Kotlin)
+  String cmd = extractField(message, "cmd");
+  String action = extractField(message, "action");
+  if (message == "ON" || cmd == "open" || action == "on") {
     setValve(true);
-  } else if (message == "OFF" || extractField(message, "cmd") == "close") {
+  } else if (message == "OFF" || cmd == "close" || action == "off") {
     setValve(false);
-  } else if (extractField(message, "cmd") == "toggle") {
+  } else if (cmd == "toggle") {
     setValve(!valveOn);
-  } else if (extractField(message, "cmd") == "getStatus") {
+  } else if (cmd == "getStatus") {
     publishStatus();
-  } else if (extractField(message, "cmd") == "reboot") {
+  } else if (cmd == "reboot") {
     delay(100);
     ESP.restart();
   }
@@ -306,8 +336,10 @@ void setup() {
   prefs.begin("valve", false);
   valveMode = prefs.getString("mode", "manual");
   schedulesJson = prefs.getString("schedules", "");
+  lastCmdAt = prefs.getString("cmdAt", "");
   Serial.print("Restored mode="); Serial.println(valveMode);
   Serial.print("Restored schedules="); Serial.println(schedulesJson);
+  Serial.print("Restored cmdAt="); Serial.println(lastCmdAt);
 
   Serial.print("Connecting to WiFi: "); Serial.println(ssid);
   WiFi.begin(ssid, password);

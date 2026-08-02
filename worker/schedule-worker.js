@@ -13,6 +13,7 @@
 
 const CFG_KEY = 'config';
 const STATE_KEY = 'state';
+const CMD_KEY = 'command';
 
 // CORS: แอปวิ่งบน pages.dev ต้อง POST ข้าม origin มาที่ Worker ได้
 const CORS_HEADERS = {
@@ -118,11 +119,29 @@ async function handleRequest(request, env) {
     }
   }
 
+  if (request.method === 'POST' && url.pathname === '/command') {
+    try {
+      const body = await request.json();
+      if (body && typeof body === 'object' && typeof body.open === 'boolean') {
+        const cmd = {
+          open: body.open,
+          at: new Date().toISOString(),
+        };
+        await env.SCHEDULE_KV.put(CMD_KEY, JSON.stringify(cmd));
+        return jsonResponse({ ok: true, stored: cmd });
+      }
+      return jsonResponse({ ok: false, error: 'bad body (need {"open":true|false})' }, 400);
+    } catch (e) {
+      return jsonResponse({ ok: false, error: e.message }, 400);
+    }
+  }
+
   if (request.method === 'GET') {
     const cfg = await env.SCHEDULE_KV.get(CFG_KEY, 'json');
     const state = await env.SCHEDULE_KV.get(STATE_KEY, 'json');
+    const command = await env.SCHEDULE_KV.get(CMD_KEY, 'json');
     const { minutesInDay, dayOfWeek } = thaiMinutes(new Date());
-    return jsonResponse({ ok: true, nowMin: minutesInDay, dayOfWeek, config: cfg, state });
+    return jsonResponse({ ok: true, nowMin: minutesInDay, dayOfWeek, config: cfg, state, command });
   }
 
   return jsonResponse({ ok: false, error: 'not found' }, 404);

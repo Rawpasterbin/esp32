@@ -902,6 +902,23 @@
       UI.updateValveUI();
       saveState();
       sendCommandToEsp({ type: 'valve', action: on ? 'on' : 'off' });
+      syncValveCommandToCloudflare(on); // ส่งผ่าน HTTPS ไป Worker (ESP32 poll มาใช้ได้แม้ MQTT หลุด)
+    }
+
+    // ส่งคำสั่งเปิด/ปิดวาล์วไป Cloudflare Worker -> ESP32 ดึงผ่าน poll (เส้นทาง HTTPS ที่เชื่อถือได้)
+    function syncValveCommandToCloudflare(on) {
+      const workerUrl = Config.apiWorkerUrl;
+      if (!workerUrl) return;
+      try {
+        const base = workerUrl.replace(/\/config$/, '');
+        fetch(base + '/command', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ open: on })
+        }).catch(() => { /* offline -> ข้าม */ });
+      } catch (e) {
+        /* ignore */
+      }
     }
 
     function toggleManualValve() {
