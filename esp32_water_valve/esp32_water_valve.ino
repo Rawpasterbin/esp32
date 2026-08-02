@@ -30,9 +30,10 @@ const char* WORKER_URL = "https://water-valve-scheduler.czqwertyyy.workers.dev/"
 // ความถี่ตรวจตารางเวลา (10 วิ)
 const unsigned long SCHEDULE_CHECK_MS = 10000;
 // ความถี่ดึง config จาก Worker - เร็วในโหมด manual (ตอบสนองคำสั่ง), ช้าใน auto (ตารางรันในเครื่องแล้ว)
-const unsigned long CONFIG_FETCH_MS_MANUAL = 5000;
-const unsigned long CONFIG_FETCH_MS_AUTO = 30000;
-
+// MQTT เป็นช่องทางหลัก (คำสั่ง/โหมด/ตาราง = instant + แทบไม่เปลือง data)
+// Worker poll เหลือเป็นสำรอง/แก้ไขย้อนหลัง -> ช้าลงได้มาก ประหยัดงบ SIM 300MB
+const unsigned long CONFIG_FETCH_MS_MANUAL = 120000; // manual: 2 นาที
+const unsigned long CONFIG_FETCH_MS_AUTO = 120000;   // auto: 2 นาที
 WiFiClientSecure espClient;
 WiFiClientSecure httpsClient;
 PubSubClient mqtt(espClient);
