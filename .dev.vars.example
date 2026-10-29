@@ -1,0 +1,2 @@
+# Copy to .dev.vars (git-ignored) and fill in local-only values.
+SETUP_TOKEN=replace-with-a-long-random-local-token

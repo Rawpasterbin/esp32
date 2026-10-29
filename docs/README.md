@@ -1,0 +1,28 @@
+# เอกสารโปรเจกต์ appesp32
+
+โฟลเดอร์นี้เก็บผลวิเคราะห์และสถาปัตยกรรมสำหรับการพัฒนาโปรเจกต์ Water Valve Scheduler
+
+| เอกสาร | เนื้อหา |
+|---|---|
+| [`PROJECT_ANALYSIS.md`](./PROJECT_ANALYSIS.md) | วิเคราะห์ระบบปัจจุบันทั้งหมด: Web UI, Worker, ESP32, Android, data model, API, ปัญหา/ความเสี่ยง, ผลทดสอบ |
+| [`ARCHITECTURE_CENTRAL_CONFIG.md`](./ARCHITECTURE_CENTRAL_CONFIG.md) | สถาปัตยกรรมเป้าหมาย: central config ด้วย D1 + revision + auth, API spec, sync protocol, safety, แผน migration, ประมาณการงาน |
+
+## เอกสารในโปรเจกต์ Android
+
+| เอกสาร | เนื้อหา |
+|---|---|
+| `C:\Users\ssde\AndroidStudioProjects\ESP32\docs\MIGRATION_PLAN.md` | แผนย้าย Android จาก WebView เป็น native Compose UI + เชื่อม Worker API |
+
+## สรุปสั้น
+
+- **ทำได้** ที่จะให้ Worker เป็น backend กลางและทุกเครื่องเห็น setting เดียวกัน
+- ระบบปัจจุบันยังไม่ sync จริง เพราะแอปไม่เคย GET config จาก Worker และไม่มี revision/auth
+- ต้องเพิ่ม read path + revision + auth + command TTL/ack + safety ก่อนใช้งานกับวาล์วจริง
+- Android ควรเปลี่ยนเป็น native UI; MQTT ยังใช้เป็นช่องทาง real-time หลักของ ESP32 เพราะประหยัด data บนซิม 399 MB/เดือน
+
+## ข้อตัดสินใจล่าสุด (29 ต.ค. 2026)
+
+- 1 วาล์ว
+- ESP32 ใช้ซิม 4G/5G 399 MB/เดือน ไม่ใช้ WiFi → MQTT + HTTPS sync ทุก 15 นาที (ประเมิน ~10–30 MB/เดือน)
+- ทำ backend + native UI คู่ขนาน
+- Login ด้วย invite code + household password

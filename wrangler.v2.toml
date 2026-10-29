@@ -1,0 +1,31 @@
+# Water Valve API v2 (D1 + auth + revision + commands)
+# Local dev:
+#   npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0001_init.sql
+#   npx wrangler dev --config wrangler.v2.toml --local
+#
+# Production:
+#   npx wrangler d1 create water-valve-v2
+#   -> copy the real database_id into the binding below
+#   npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
+#   npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
+#   npx wrangler deploy --config wrangler.v2.toml
+
+name = "water-valve-api-v2"
+main = "worker/v2/index.js"
+compatibility_date = "2024-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "water-valve-v2"
+# Placeholder for local development. Replace with the real id from `wrangler d1 create`.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+# Browser origins allowed to call the API (comma separated).
+# Native Android does not need CORS; keep this only for the web admin console.
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:8788,https://esp32-cqw.pages.dev"
+
+# Do NOT put SETUP_TOKEN here. Use:
+#   npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
+# For local dev put it in .dev.vars (git-ignored).
