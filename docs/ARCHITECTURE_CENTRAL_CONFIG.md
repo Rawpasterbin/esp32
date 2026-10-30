@@ -1030,3 +1030,64 @@ com.example.esp32/
 - เริ่ม Phase 0–1 (backend) คู่ขนานกับ Phase 2 (Android read-only) ตามที่เลือก; Phase 3–4 ตามด้วย
 - อย่าใช้กับวาล์วน้ำจริงจนกว่า safety (C5) และ auth (C1) จะเสร็จ
 - รายละเอียดการย้าย Android อยู่ใน `C:\Users\ssde\AndroidStudioProjects\ESP32\docs\MIGRATION_PLAN.md`
+
+---
+
+## 17. Firmware v2 implementation notes (2026-10-30)
+
+These notes supersede the optimistic data estimate above.
+
+### 17.1 One TLS session on A7672X
+
+TinyGSM 0.12.0's A7672X driver hardcodes SSL session/context `0` and routes
+URCs through `sockets[mux]`. Two `TinyGsmClientSecure` instances (MQTT on
+mux 0 + HTTPS on mux 1) collide: `+CCHOPEN=0` is reused and `+CCHRECV=1`
+targets a session that is not open. The firmware therefore uses **one**
+`TinyGsmClientSecure` shared by PubSubClient and the HTTPS client.
+
+Sync sequence:
+
+1. `mqtt.disconnect()` (DISCONNECT + `+CCHCLOSE=0`)
+2. HTTPS `POST /v1/devices/sync`
+3. HTTPS ack for a command delivered by sync (if any)
+4. `mqttConnect()` on the next loop iteration
+
+MQTT is offline for a few seconds every 15 minutes. Commands sent only over
+MQTT during that window are lost; the Android app must retry or use
+`POST /v1/commands` so D1 queues the command for the next sync.
+
+### 17.2 Ack path
+
+The HTTP ack endpoint cannot be called while MQTT owns the TLS session.
+Therefore:
+
+- MQTT command success is reported in `status.lastCommandId`.
+- MQTT command rejection is reported in `status.lastRejectedId` /
+  `lastRejectedError`.
+- The next `/v1/devices/sync` includes `lastCommandId`, and
+  `updateDeviceStatus()` marks that pending command as `acked` in D1.
+- HTTP `POST /v1/devices/commands/:id/ack` is only used for commands that
+  arrive inside the sync response.
+
+### 17.3 Data budget correction
+
+A fresh TLS handshake per sync (MQTT reconnect + HTTPS) costs more than the
+earlier 10–30 MB/month estimate. Realistic range: **~55–105 MB/month**
+(see `esp32_water_valve/README.md`). Still well under 399 MB, but verify on
+the carrier dashboard after the first week.
+
+### 17.4 HTTP client
+
+ESP32 core 3.3.11's `HTTPClient::begin()` requires `NetworkClient&`, which
+TinyGSM's `GsmClient` does not implement. The firmware uses a small
+HTTP/1.1 client over the shared TLS socket, with `Content-Length` and
+chunked-body support, instead of `HTTPClient`.
+
+### 17.5 Hardware verification still required
+
+- Relay active level (`RELAY_ACTIVE_HIGH`, default 1 = HIGH opens).
+- A7672X CA upload (`AT+CCERTDOWN` / `AT+CSSLCFG="cacert"`) and TLS
+  handshake on the carrier network.
+- HiveMQ ACL for the scoped user/topics.
+- Power stability under cellular transmit bursts (2 A peaks).
+
