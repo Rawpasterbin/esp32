@@ -197,5 +197,99 @@ Assert-Equal $state3.Status 200 'state after sync returns 200'
 Assert-True ([bool]$state3.Json.data.devices[0].lastSeenAt) 'state exposes device lastSeenAt'
 Assert-Equal $state3.Json.data.devices[0].valve $true 'state exposes valve status from device'
 
+# 15. Android write path: If-Match with a quoted ETag drives the revision.
+$ifMatchConfig = @{
+  mode         = 'manual'
+  baseRevision = 2
+  schedules    = @(
+    @{
+      id      = 1
+      name    = 'Morning'
+      start   = '06:00'
+      end     = '06:30'
+      days    = @($true, $true, $true, $true, $true, $false, $false)
+      enabled = $true
+    }
+  )
+}
+$put3 = Invoke-Api PUT "/v1/households/$householdId/config" -Headers @{
+  Authorization = "Bearer $token"
+  'If-Match'    = '"rev-2"'
+} -Body $ifMatchConfig
+Assert-Equal $put3.Status 200 'PUT config with If-Match rev-2 returns 200'
+Assert-Equal $put3.Json.data.revision 3 'If-Match write increments revision to 3'
+
+# 16. A stale If-Match is rejected even if baseRevision looks current.
+$put4 = Invoke-Api PUT "/v1/households/$householdId/config" -Headers @{
+  Authorization = "Bearer $token"
+  'If-Match'    = '"rev-2"'
+} -Body $ifMatchConfig
+Assert-Equal $put4.Status 409 'stale If-Match returns 409'
+Assert-Equal $put4.Json.error.details.current.revision 3 'stale If-Match reports current revision'
+
+# 17. Unquoted/weak validators are tolerated (Android sends quoted, but be lenient).
+$put5 = Invoke-Api PUT "/v1/households/$householdId/config" -Headers @{
+  Authorization = "Bearer $token"
+  'If-Match'    = 'W/"rev-3"'
+} -Body @{
+  mode         = 'auto'
+  baseRevision = 3
+  schedules    = $ifMatchConfig.schedules
+}
+Assert-Equal $put5.Status 200 'weak If-Match validator is accepted'
+Assert-Equal $put5.Json.data.revision 4 'weak If-Match write increments revision to 4'
+
+# 18. Invalid schedule time is rejected without changing the revision.
+$badConfig = Invoke-Api PUT "/v1/households/$householdId/config" -Headers $auth -Body @{
+  mode         = 'auto'
+  baseRevision = 4
+  schedules    = @(
+    @{
+      id      = 1
+      name    = 'Bad'
+      start   = '25:00'
+      end     = '06:30'
+      days    = @($true, $true, $true, $true, $true, $false, $false)
+      enabled = $true
+    }
+  )
+}
+Assert-Equal $badConfig.Status 422 'invalid HH:MM returns 422'
+Assert-Equal $badConfig.Json.error.code 'VALIDATION' 'invalid schedule has VALIDATION code'
+
+# 19. The app can list command history and see the acked command.
+$list1 = Invoke-Api GET "/v1/households/$householdId/commands?limit=10" -Headers $auth
+Assert-Equal $list1.Status 200 'command list returns 200'
+$listedAck = $list1.Json.data.commands | Where-Object { $_.commandId -eq $commandId }
+Assert-True ($null -ne $listedAck) 'command list includes the earlier command'
+Assert-Equal $listedAck.status 'acked' 'command list shows acked status'
+
+# 20. Firmware auto-ack path: sync reports lastCommandId, D1 marks it acked.
+$cmdBody2 = @{ deviceId = $deviceId; action = 'close'; idempotencyKey = 'test-idem-2' }
+$cmd3 = Invoke-Api POST "/v1/households/$householdId/commands" -Headers $auth -Body $cmdBody2
+Assert-Equal $cmd3.Status 201 'second command returns 201'
+$commandId2 = $cmd3.Json.data.commandId
+
+$sync3 = Invoke-Api POST '/v1/devices/sync' -Headers $deviceAuth -Body @{
+  valve = $true; mode = 'auto'; firmwareVersion = '2.1.0-test'; lastCommandId = $null
+}
+Assert-Equal $sync3.Json.data.command.id $commandId2 'device receives the close command'
+
+# The device applies it and reports it on the next sync (MQTT owns TLS in between).
+$sync4 = Invoke-Api POST '/v1/devices/sync' -Headers $deviceAuth -Body @{
+  valve = $false; mode = 'auto'; firmwareVersion = '2.1.0-test'; lastCommandId = $commandId2
+}
+Assert-Equal $sync4.Status 200 'sync with lastCommandId returns 200'
+
+$list2 = Invoke-Api GET "/v1/households/$householdId/commands?limit=10" -Headers $auth
+$autoAcked = $list2.Json.data.commands | Where-Object { $_.commandId -eq $commandId2 }
+Assert-Equal $autoAcked.status 'acked' 'sync lastCommandId auto-acks the command'
+Assert-True ([bool]$autoAcked.ackedAt) 'auto-ack records ackedAt'
+
+$sync5 = Invoke-Api POST '/v1/devices/sync' -Headers $deviceAuth -Body @{
+  valve = $false; mode = 'auto'; firmwareVersion = '2.1.0-test'; lastCommandId = $commandId2
+}
+Assert-True ($null -eq $sync5.Json.data.command) 'auto-acked command is not returned again'
+
 Write-Host ''
 Write-Host 'All API smoke tests passed.' -ForegroundColor Cyan
