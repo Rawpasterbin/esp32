@@ -6,9 +6,13 @@
 $ErrorActionPreference = 'Stop'
 $Base = if ($env:API_BASE) { $env:API_BASE } else { 'http://127.0.0.1:8787' }
 
-$setupToken = (Get-Content (Join-Path $PSScriptRoot '..\.dev.vars') |
-  Where-Object { $_ -match '^SETUP_TOKEN=' }) -replace '^SETUP_TOKEN=', ''
-if (-not $setupToken) { throw 'SETUP_TOKEN not found in .dev.vars' }
+$setupToken = if ($env:SETUP_TOKEN) {
+  $env:SETUP_TOKEN
+} else {
+  (Get-Content (Join-Path $PSScriptRoot '..\.dev.vars') |
+    Where-Object { $_ -match '^SETUP_TOKEN=' }) -replace '^SETUP_TOKEN=', ''
+}
+if (-not $setupToken) { throw 'SETUP_TOKEN not found (set env:SETUP_TOKEN or .dev.vars)' }
 
 function Invoke-Api {
   param(

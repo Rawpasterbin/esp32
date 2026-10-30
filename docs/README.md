@@ -16,11 +16,12 @@
 ## สรุปสั้น
 
 - **ทำได้** ที่จะให้ Worker เป็น backend กลางและทุกเครื่องเห็น setting เดียวกัน
-- ระบบปัจจุบันยังไม่ sync จริง เพราะแอปไม่เคย GET config จาก Worker และไม่มี revision/auth
-- ต้องเพิ่ม read path + revision + auth + command TTL/ack + safety ก่อนใช้งานกับวาล์วจริง
-- Android ควรเปลี่ยนเป็น native UI; MQTT ยังใช้เป็นช่องทาง real-time หลักของ ESP32 เพราะประหยัด data บนซิม 399 MB/เดือน
+- Worker v2 + D1 ถูก deploy จริงแล้วที่ `https://water-valve-api-v2.czqwertyyy.workers.dev` (ดู §18 ใน `ARCHITECTURE_CENTRAL_CONFIG.md`)
+- Android เป็น native Compose UI (ไม่มี WebView) อ่าน/เขียน mode + ตารางเวลา และ queue คำสั่งเปิด/ปิดผ่าน Worker; ยังรอ smoke test บนเครื่องจริง
+- Firmware v2 ใช้ MQTT/TLS เป็นช่องทาง real-time + HTTPS sync ทุก 15 นาที; ยังรอตรวจ relay/TLS บนฮาร์ดแวร์
+- ต้องตรวจ safety (relay active level, maxopen) และ HiveMQ ACL ก่อนใช้งานกับวาล์วจริง
 
-## ข้อตัดสินใจล่าสุด (29 ต.ค. 2026)
+## ข้อตัดสินใจล่าสุด (31 ต.ค. 2026)
 
 - 1 วาล์ว
 - ESP32 ใช้ซิม 4G/5G 399 MB/เดือน ไม่ใช้ WiFi → MQTT + HTTPS sync ทุก 15 นาที (ประเมิน ~10–30 MB/เดือน)

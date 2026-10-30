@@ -107,7 +107,7 @@ $body = @{
 } | ConvertTo-Json
 
 Invoke-RestMethod -Method Post `
-  -Uri 'https://water-valve-scheduler.czqwertyyy.workers.dev/v1/setup' `
+  -Uri 'https://water-valve-api-v2.czqwertyyy.workers.dev/v1/setup' `
   -Headers @{ 'X-Setup-Token' = '<SETUP_TOKEN>' } `
   -ContentType 'application/json' `
   -Body $body
@@ -123,7 +123,7 @@ set token dev_xxxxxxxxxxxxxxxx
 set apn internet
 set apnuser <apn-user-if-required>
 set apnpass <apn-password-if-required>
-set url https://water-valve-scheduler.czqwertyyy.workers.dev
+set url https://water-valve-api-v2.czqwertyyy.workers.dev
 set mqttuser <hivemq-user>
 set mqttpass <hivemq-password>
 set maxopen 30

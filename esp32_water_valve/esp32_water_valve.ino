@@ -71,7 +71,7 @@ const int RELAY_PIN = 23;
 const long GMT_OFFSET_SEC = 7 * 3600; // Asia/Bangkok
 const long DAYLIGHT_OFFSET_SEC = 0;
 
-const char *DEFAULT_WORKER_URL = "https://water-valve-scheduler.czqwertyyy.workers.dev";
+const char *DEFAULT_WORKER_URL = "https://water-valve-api-v2.czqwertyyy.workers.dev";
 const char *DEFAULT_MQTT_HOST = "74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud";
 const uint16_t MQTT_PORT = 8883;
 

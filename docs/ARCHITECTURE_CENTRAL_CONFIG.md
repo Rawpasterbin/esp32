@@ -1091,3 +1091,48 @@ chunked-body support, instead of `HTTPClient`.
 - HiveMQ ACL for the scoped user/topics.
 - Power stability under cellular transmit bursts (2 A peaks).
 
+---
+
+## 18. Production deployment (2026-10-31)
+
+Worker v2 and D1 are deployed and verified end-to-end.
+
+| Item | Value |
+|---|---|
+| Worker URL | `https://water-valve-api-v2.czqwertyyy.workers.dev` |
+| Worker name | `water-valve-api-v2` |
+| D1 database | `water-valve-v2` (APAC, id `7ed1f52f-759e-4edd-a936-847c7277b824`) |
+| Schema | `migrations/0001_init.sql` applied remotely (15 statements) |
+| Health | `GET /health` → `200 {"version":"2.0.0"}` |
+| Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
+| API smoke test | 47/47 checks pass against production, test household deleted afterwards |
+
+Deploy/update commands:
+
+```powershell
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
+$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
+npx wrangler deploy --config wrangler.v2.toml
+```
+
+Run the API tests against production:
+
+```powershell
+$env:API_BASE = 'https://water-valve-api-v2.czqwertyyy.workers.dev'
+$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
+```
+
+The old `water-valve-scheduler` Worker and Pages site are untouched; they
+remain as the legacy system until the native app/firmware are accepted.
+
+Android debug builds now default to the production URL. For local testing:
+
+```powershell
+.\gradlew.bat assembleDebug -PapiBaseUrl=http://10.0.2.2:8787/
+```
+
+Firmware defaults to the production URL; `set url ...` can override it in NVS.
+
+
