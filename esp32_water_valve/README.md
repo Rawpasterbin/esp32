@@ -167,6 +167,15 @@ Notes:
 | `status` | Publish MQTT status and print config |
 | `reboot` | Restart the ESP32 |
 
+## Timezone
+
+Schedules and NTP use a fixed **UTC+7 (Asia/Bangkok)** offset
+(`GMT_OFFSET_SEC` in the sketch). The Worker household has a `timezone`
+field, but the firmware does not read it yet. If the house is not in
+UTC+7, change `GMT_OFFSET_SEC` and redeploy. The Android app renders
+schedule times in the phone's local timezone, so the phone must use the
+same timezone as the valve.
+
 ## MQTT topics
 
 Default prefix: `myhouse/valve/`.

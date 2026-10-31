@@ -71,6 +71,7 @@
 - [ ] โหมด auto + schedule กำลัง active → ส่ง close → วาล์วต้องปิดและ **ไม่เปิดซ้ำ** จนจบ window (รวม reboot ระหว่างนั้น)
 - [ ] ระหว่าง suppression → สลับเป็น manual แล้วกลับ auto → latch ต้องถูกล้าง
 - [ ] ปล่อยให้ loop ค้าง (ถ้าจำลองได้) → task watchdog 120 วิ reset
+- [ ] ตรวจว่า timezone ของบ้านตรงกับ firmware (ปัจจุบัน firmware fix UTC+7) และมือถือตั้ง timezone เดียวกัน
 
 ## 7. Data budget
 
@@ -88,6 +89,7 @@
 - [ ] เปลี่ยน mode → เครื่องอื่นเห็นภายใน 15 วิ
 - [ ] เพิ่ม/แก้/ลบ schedule → บันทึกสำเร็จ, conflict dialog ทำงานเมื่อแก้พร้อมกัน
 - [ ] เปิด/ปิดวาล์ว → เห็น pending แล้ว acked/expired
+- [ ] คำสั่งที่ใช้เวลา > 60 วิ → การ์ดคำสั่งอัปเดตเป็น acked/expired เองโดยไม่ต้องกด refresh
 - [ ] ปิดเน็ต → เห็น cache + ข้อความ "ออฟไลน์ — แสดงข้อมูลล่าสุดเมื่อ..."
 - [ ] ปิดแอปแล้วเปิดใหม่ตอนเน็ตหลุด → ยังเห็น snapshot ล่าสุด (cache ข้าม process)
 - [ ] เปิด Settings → เห็นบัญชี/บ้าน/อุปกรณ์/เวอร์ชัน/API และ logout มี confirm
