@@ -495,8 +495,8 @@ Conflict:
 }
 ```
 
-- Server ตั้ง `expires_at = now + 60s`
-- ถ้ามี pending command ของ device เดียวกัน → mark `expired` ก่อน
+- Server ตั้ง `expires_at = now + 20 นาที` (ต้องมากกว่า sync interval 15 นาที)
+- ถ้ามี pending command ของ device เดียวกัน → mark `expired` + `error='superseded'` ก่อน (latest wins; กันคำสั่ง open เก่ามาทำงานหลัง close)
 - ถ้า `idempotencyKey` ซ้ำ → คืน command เดิม (กัน double-tap/retry)
 
 ```json
@@ -505,7 +505,7 @@ Conflict:
   "data": {
     "commandId": "cmd_...",
     "action": "open",
-    "expiresAt": "2026-10-29T10:01:00Z",
+    "expiresAt": "2026-10-29T10:20:00Z",
     "status": "pending"
   }
 }
@@ -658,16 +658,16 @@ data: {"commandId":"cmd_...","action":"open","status":"acked"}
 ### 7.3 ผู้ใช้กดเปิด/ปิดวาล์ว (v1: MQTT เร็ว + Worker audit)
 
 ```
-1. App สร้าง commandId + expiresAt (60s)
+1. App สร้าง commandId + expiresAt (60s สำหรับ MQTT)
 2. App publish MQTT {cmd:"open|close", commandId, expiresAt}
    ไป myhouse/valve/control (scoped credential)
-3. App POST /commands เพื่อบันทึก audit (best-effort)
+3. App POST /commands (D1 queue, TTL 20 นาที) เป็น fallback/audit
 4. ESP32 ตรวจ expiresAt + commandId ใหม่ → execute → publish status/ack
 5. App เห็น status ทาง MQTT ทันที
 6. ESP32 POST /devices/commands/:id/ack (หรือรวมใน sync รอบถัดไป)
 ```
 
-**Fallback:** ถ้า MQTT ส่งไม่ได้ → command ที่ POST ไว้ใน Worker จะถูกส่งให้ ESP32 ใน `desired`/`sync` รอบถัดไป (ช้ากว่า แต่ไม่หาย)
+**Fallback:** ถ้า MQTT ส่งไม่ได้ → command ที่ POST ไว้ใน Worker จะถูกส่งให้ ESP32 ใน `desired`/`sync` รอบถัดไป (ช้ากว่า แต่ไม่หาย; TTL 20 นาทีครอบ sync 15 นาที)
 
 **ห้าม** ให้แอปสมมติว่าคำสั่งสำเร็จทันที — ต้องรอ status/ack จาก ESP32
 
@@ -716,9 +716,11 @@ loop:
 
 ### 8.2 Command TTL
 
-- ทุก command มีอายุ 60 วิ
+- คำสั่งใน D1 queue มีอายุ **20 นาที** (ครอบ sync 15 นาที + retry)
+- MQTT real-time command ใช้ TTL สั้น (60 วิ) ได้ เพราะส่งถึงอุปกรณ์ทันที
 - ESP32 ignore command ที่ `expiresAt < now`
 - Server mark `expired` ถ้าเลยเวลา
+- สร้าง command ใหม่จะ expire pending เดิมก่อน → ไม่มีคำสั่งเก่าค้างมาทำงานย้อนหลัง
 - ป้องกันคำสั่งเก่าจาก KV ที่ค้างเป็นเดือน (ตามที่พบใน live)
 
 ### 8.3 Relay fail-safe
@@ -1105,7 +1107,7 @@ Worker v2 and D1 are deployed and verified end-to-end.
 | Schema | `migrations/0001_init.sql` applied remotely (15 statements) |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
 | Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
-| API smoke test | 47/47 checks pass against production, test household deleted afterwards |
+| API smoke test | 54/54 checks pass against production, test household deleted afterwards |
 
 Deploy/update commands:
 

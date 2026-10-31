@@ -295,5 +295,31 @@ $sync5 = Invoke-Api POST '/v1/devices/sync' -Headers $deviceAuth -Body @{
 }
 Assert-True ($null -eq $sync5.Json.data.command) 'auto-acked command is not returned again'
 
+# 21. A newer command supersedes older pending ones (latest wins, no stale open).
+$cmdA = Invoke-Api POST "/v1/households/$householdId/commands" -Headers $auth -Body @{
+  deviceId = $deviceId; action = 'open'; idempotencyKey = 'test-idem-a'
+}
+Assert-Equal $cmdA.Status 201 'first queued command returns 201'
+$cmdB = Invoke-Api POST "/v1/households/$householdId/commands" -Headers $auth -Body @{
+  deviceId = $deviceId; action = 'close'; idempotencyKey = 'test-idem-b'
+}
+Assert-Equal $cmdB.Status 201 'second queued command returns 201'
+
+$ttlMinutes = ([datetime]$cmdB.Json.data.expiresAt - [datetime]$cmdB.Json.data.createdAt).TotalMinutes
+Assert-True ($ttlMinutes -ge 19) 'command TTL covers the 15-minute device sync interval'
+
+$list3 = Invoke-Api GET "/v1/households/$householdId/commands?limit=10" -Headers $auth
+$superseded = $list3.Json.data.commands | Where-Object { $_.commandId -eq $cmdA.Json.data.commandId }
+Assert-Equal $superseded.status 'expired' 'older pending command is expired'
+Assert-Equal $superseded.error 'superseded' 'older command records superseded reason'
+
+$sync6 = Invoke-Api POST '/v1/devices/sync' -Headers $deviceAuth -Body @{
+  valve = $false; mode = 'auto'; firmwareVersion = '2.1.0-test'; lastCommandId = $commandId2
+}
+Assert-Equal $sync6.Json.data.command.id $cmdB.Json.data.commandId 'device receives only the newest command'
+
+$ackB = Invoke-Api POST "/v1/devices/commands/$($cmdB.Json.data.commandId)/ack" -Headers $deviceAuth -Body @{ status = 'acked'; error = $null }
+Assert-Equal $ackB.Status 200 'newest command ack returns 200'
+
 Write-Host ''
 Write-Host 'All API smoke tests passed.' -ForegroundColor Cyan

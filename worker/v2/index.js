@@ -17,7 +17,7 @@
 
 const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 30;
-const COMMAND_TTL_SECONDS = 60;
+const COMMAND_TTL_SECONDS = 20 * 60; // must exceed the device's 15-minute sync interval
 
 const DEFAULT_SCHEDULES = [
   {
@@ -648,10 +648,13 @@ async function handleCreateCommand(request, env, householdId) {
   const createdAt = nowIso();
   const expiresAt = addSecondsIso(COMMAND_TTL_SECONDS);
 
+  // Latest command wins. Without this, an older pending "open" could be
+  // delivered on the sync after a newer "close" was acked, opening the valve
+  // unexpectedly. Idempotent replays return above and do not supersede.
   await env.DB.prepare(
-    `UPDATE commands SET status = 'expired'
-     WHERE device_id = ? AND status = 'pending' AND expires_at <= ?`,
-  ).bind(deviceId, createdAt).run();
+    `UPDATE commands SET status = 'expired', error = 'superseded'
+     WHERE device_id = ? AND status = 'pending'`,
+  ).bind(deviceId).run();
 
   const id = uuid();
   await env.DB.prepare(
