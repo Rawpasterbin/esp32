@@ -87,6 +87,8 @@
 - [ ] เพิ่ม/แก้/ลบ schedule → บันทึกสำเร็จ, conflict dialog ทำงานเมื่อแก้พร้อมกัน
 - [ ] เปิด/ปิดวาล์ว → เห็น pending แล้ว acked/expired
 - [ ] ปิดเน็ต → เห็น cache + ข้อความ "ออฟไลน์ — แสดงข้อมูลล่าสุดเมื่อ..."
+- [ ] ปิดแอปแล้วเปิดใหม่ตอนเน็ตหลุด → ยังเห็น snapshot ล่าสุด (cache ข้าม process)
+- [ ] เปิด Settings → เห็นบัญชี/บ้าน/อุปกรณ์/เวอร์ชัน/API และ logout มี confirm
 - [ ] ปิด/เปิดแอป → session ยังอยู่ (token ใน Keystore)
 - [ ] Logout → token ถูก revoke และกลับหน้า login
 
