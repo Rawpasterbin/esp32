@@ -409,7 +409,7 @@ Revoke session
 ```
 
 - `newPassword` อย่างน้อย 8 ตัวอักษร และต้องต่างจากรหัสเดิม
-- รหัสปัจจุบันผิด → `401 UNAUTHORIZED`
+- รหัสปัจจุบันผิด → `401 INVALID_PASSWORD` (ไม่ใช่ `UNAUTHORIZED` เพื่อไม่ให้แอปเข้าใจว่า session หมดอายุ)
 - สำเร็จ → revoke session อื่นทั้งหมดของ household (session ที่เรียกยังใช้ได้)
 - audit: `household.password.change`
 

@@ -402,6 +402,7 @@ $badRotate = Invoke-Api POST "/v1/households/$householdIdB/password" -Headers $a
   currentPassword = 'wrong-password'; newPassword = 'new-password-789'
 }
 Assert-Equal $badRotate.Status 401 'password rotation rejects a wrong current password'
+Assert-Equal $badRotate.Json.error.code 'INVALID_PASSWORD' 'wrong current password uses INVALID_PASSWORD, not session expiry'
 $shortRotate = Invoke-Api POST "/v1/households/$householdIdB/password" -Headers $authBNew -Body @{
   currentPassword = 'other-password-456'; newPassword = 'short'
 }

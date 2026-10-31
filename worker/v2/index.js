@@ -608,7 +608,7 @@ async function handleChangePassword(request, env, householdId) {
   const valid = await verifyPassword(currentPassword, household.password_hash);
   if (!valid) {
     await recordAuthFailure(env, rate.key);
-    return fail('UNAUTHORIZED', 'Current password is incorrect', 401);
+    return fail('INVALID_PASSWORD', 'Current password is incorrect', 401);
   }
   await clearAuthFailures(env, rate.key);
 
