@@ -8,6 +8,7 @@
 | [`ARCHITECTURE_CENTRAL_CONFIG.md`](./ARCHITECTURE_CENTRAL_CONFIG.md) | สถาปัตยกรรมเป้าหมาย: central config ด้วย D1 + revision + auth, API spec, sync protocol, safety, แผน migration, ประมาณการงาน |
 | [`HARDWARE_TEST_CHECKLIST.md`](./HARDWARE_TEST_CHECKLIST.md) | ขั้นตอนทดสอบฮาร์ดแวร์: relay polarity, cellular/TLS, MQTT ACL, sync/ack, safety, data budget, Android runtime |
 | [`SECURITY.md`](./SECURITY.md) | การจัดการ secret, incident ของ MQTT credential เก่า และขั้นตอน rotate |
+| [`RUNBOOK.md`](./RUNBOOK.md) | คู่มือ production: deploy, backup/restore D1, rotate token/รหัสบ้าน, วินิจฉัยปัญหา, incident response |
 
 ## เอกสารในโปรเจกต์ Android
 

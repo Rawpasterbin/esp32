@@ -125,5 +125,6 @@ Still requires hardware/user verification:
 - Real-time Android MQTT control (optional phase).
 
 See `docs/ARCHITECTURE_CENTRAL_CONFIG.md` §17–18,
-`docs/HARDWARE_TEST_CHECKLIST.md`, and **`docs/SECURITY.md`** (legacy MQTT
-credential must be rotated before hardware deployment).
+`docs/HARDWARE_TEST_CHECKLIST.md`, **`docs/SECURITY.md`** (legacy MQTT
+credential must be rotated before hardware deployment), and
+`docs/RUNBOOK.md` for deploy/backup/rotation procedures.
