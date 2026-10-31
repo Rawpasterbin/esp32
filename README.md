@@ -58,6 +58,25 @@ $env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
 powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```
 
+## Create the real household
+
+```powershell
+$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+powershell -ExecutionPolicy Bypass -File scripts/create-household.ps1 `
+  -HouseholdName 'บ้านของเรา'
+```
+
+- Prompts for the household password (min 8 characters); the password is not
+  written to disk.
+- Saves the one-time `deviceToken` and IDs to
+  `C:\Temp\opencode\water-valve-household.json` with a user-only ACL.
+- Prints the `set token ...` / `set url ...` provisioning commands.
+- Use `-Force` only when you intentionally want to replace the saved file.
+- Treat the token file as a secret; never commit it.
+
+Before provisioning firmware, read `docs/SECURITY.md`: the legacy HiveMQ
+credential must be rotated first.
+
 ## Android
 
 ```powershell
