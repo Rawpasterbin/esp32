@@ -182,6 +182,11 @@ $etag = [string]$state1.Headers['ETag']
 $state2 = Invoke-Api GET "/v1/households/$householdId/state" -Headers $auth
 $newEtag = [string]$state2.Headers['ETag']
 $notModified = Invoke-Api GET "/v1/households/$householdId/state" -Headers @{ Authorization = "Bearer $token"; 'If-None-Match' = $newEtag }
+if ($notModified.Status -ne 304) {
+  # The ETag includes a 1-minute online bucket; retry once if the minute rolled.
+  $newEtag = [string]$notModified.Headers['ETag']
+  $notModified = Invoke-Api GET "/v1/households/$householdId/state" -Headers @{ Authorization = "Bearer $token"; 'If-None-Match' = $newEtag }
+}
 Assert-Equal $notModified.Status 304 'state returns 304 when ETag matches'
 
 # 10. Create command (idempotent).
