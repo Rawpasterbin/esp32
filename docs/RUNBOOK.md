@@ -16,7 +16,7 @@
 | Config | `wrangler.v2.toml` |
 | Setup token | Worker secret `SETUP_TOKEN`; สำเนา local `C:\Temp\opencode\water-valve-setup-token.txt` |
 | Household | `Home` สร้างแล้ว (`e2d4db8f-9c7e-41b5-bfec-ff2429deeee0`) |
-| Credentials | invite code/device token: `C:\Temp\opencode\water-valve-household.json`; รหัสบ้านเริ่มต้น: `C:\Temp\opencode\water-valve-household-password.txt` (ACL user-only — เปลี่ยนรหัสใน Settings แล้วลบไฟล์นี้) |
+| Credentials | invite code/device token: `C:\Temp\opencode\water-valve-household.json`; รหัสบ้านปัจจุบัน: `C:\Temp\opencode\water-valve-household-password.txt` (ACL user-only — ลบไฟล์นี้หลังจำรหัสหรือเปลี่ยนรหัสใน Settings) |
 
 ## 2. Health check
 
