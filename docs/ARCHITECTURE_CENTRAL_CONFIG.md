@@ -515,6 +515,8 @@ Conflict:
 
 ประวัติล่าสุด (optional)
 
+- คำสั่ง `pending` ที่เลย `expires_at` จะถูก mark เป็น `expired` + `error='ttl'` ก่อนคืนผล (ยังไม่มี cron trigger)
+
 ### 6.6 Device endpoints (ใช้ device token)
 
 #### `POST /v1/devices/sync` (แนะนำสำหรับ ESP32)
@@ -719,7 +721,7 @@ loop:
 - คำสั่งใน D1 queue มีอายุ **20 นาที** (ครอบ sync 15 นาที + retry)
 - MQTT real-time command ใช้ TTL สั้น (60 วิ) ได้ เพราะส่งถึงอุปกรณ์ทันที
 - ESP32 ignore command ที่ `expiresAt < now`
-- Server mark `expired` ถ้าเลยเวลา
+- `GET /commands` mark คำสั่ง pending ที่เลย TTL เป็น `expired` + `error='ttl'` (ยังไม่มี cron trigger)
 - สร้าง command ใหม่จะ expire pending เดิมก่อน → ไม่มีคำสั่งเก่าค้างมาทำงานย้อนหลัง
 - ป้องกันคำสั่งเก่าจาก KV ที่ค้างเป็นเดือน (ตามที่พบใน live)
 

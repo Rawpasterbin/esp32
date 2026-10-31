@@ -680,6 +680,15 @@ async function handleListCommands(request, env, householdId) {
 
   const url = new URL(request.url);
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 20, 1), 100);
+  const now = nowIso();
+
+  // There is no cron trigger; make history accurate when the app asks for it.
+  // The device itself already ignores commands whose expires_at has passed.
+  await env.DB.prepare(
+    `UPDATE commands SET status = 'expired', error = 'ttl'
+     WHERE household_id = ? AND status = 'pending' AND expires_at <= ?`,
+  ).bind(householdId, now).run();
+
   const rows = await env.DB.prepare(
     'SELECT * FROM commands WHERE household_id = ? ORDER BY created_at DESC LIMIT ?',
   ).bind(householdId, limit).all();
