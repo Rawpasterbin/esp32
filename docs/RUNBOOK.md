@@ -32,6 +32,7 @@ Invoke-RestMethod https://water-valve-api-v2.czqwertyyy.workers.dev/health
 # 1) migration ใหม่ (ถ้ามี) — ต้องรันก่อน deploy
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0002_auth_attempts.sql
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0003_rate_limits.sql
 
 # 2) secret (ครั้งแรกหรือเมื่อ rotate)
 $env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
@@ -155,10 +156,11 @@ npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --comm
 
 ```powershell
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --command `
-  "DELETE FROM auth_attempts;"
+  "DELETE FROM auth_attempts; DELETE FROM rate_limits;"
 ```
 
 - `auth_attempts` เก็บเฉพาะ failed login ล่าสุด; ถ้าไม่มีใคร login ผิดก็ปล่อยไว้ได้
+- `rate_limits` เก็บจำนวน command ต่อ member ในหน้าต่าง 1 นาที; ลบเพื่อปลดล็อกทันที (ปกติหมดอายุเองใน 1 นาที)
 - ข้อมูลทดสอบ (`Test House`, `Other House`) ให้ลบด้วย §8
 
 ## 10. วินิจฉัยปัญหา
@@ -177,10 +179,11 @@ npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --comm
 - คำสั่งใหม่จะ supersede คำสั่งเก่า (`error='superseded'`)
 - ถ้าอุปกรณ์ออฟไลน์นานกว่า TTL คำสั่งจะหมดอายุก่อนถึงอุปกรณ์ — ต้องส่งใหม่
 
-### Login ขึ้น 429
+### Login หรือสั่งงานขึ้น 429
 
-- เกิดจาก failed attempts 5 ครั้งใน 1 นาทีจาก IP เดียวกัน
-- รอ 1 นาที หรือลบ `auth_attempts` ตาม §9 (ระวัง: เป็นการปลดล็อก IP ทั้งหมด)
+- Login: failed attempts 5 ครั้งใน 1 นาทีจาก IP เดียวกัน
+- Command: เกิน 10 คำสั่งใน 1 นาทีต่อ member
+- รอ 1 นาที หรือลบ `auth_attempts`/`rate_limits` ตาม §9 (ระวัง: เป็นการปลดล็อกทั้งหมด)
 
 ### Worker 500
 

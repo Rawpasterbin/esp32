@@ -20,6 +20,8 @@ const SESSION_DAYS = 30;
 const COMMAND_TTL_SECONDS = 20 * 60; // must exceed the device's 15-minute sync interval
 const AUTH_WINDOW_SECONDS = 60;
 const AUTH_MAX_FAILURES = 5;
+const COMMAND_WINDOW_SECONDS = 60;
+const COMMAND_MAX_PER_WINDOW = 10;
 // The device only checks in over HTTPS every 15 minutes; a 5-minute window
 // would label a healthy device offline most of the time.
 const DEVICE_ONLINE_WINDOW_MS = 20 * 60 * 1000;
@@ -335,6 +337,46 @@ async function recordAuthFailure(env, key) {
 async function clearAuthFailures(env, key) {
   if (!key) return;
   await env.DB.prepare('DELETE FROM auth_attempts WHERE key = ?').bind(key).run();
+}
+
+/* ===================================================================
+ * Command throttling (per member, not per IP)
+ * =================================================================== */
+
+async function isCommandRateLimited(env, memberId) {
+  const key = `command:${memberId}`;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const row = await env.DB.prepare(
+    'SELECT window_start, count FROM rate_limits WHERE key = ?',
+  ).bind(key).first();
+
+  if (row && nowSeconds - row.window_start < COMMAND_WINDOW_SECONDS && row.count >= COMMAND_MAX_PER_WINDOW) {
+    return {
+      limited: true,
+      key,
+      nowSeconds,
+      retryAfter: COMMAND_WINDOW_SECONDS - (nowSeconds - row.window_start),
+    };
+  }
+  return { limited: false, key, nowSeconds, retryAfter: 0 };
+}
+
+async function recordCommandAttempt(env, key, nowSeconds) {
+  await env.DB.prepare(
+    `INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1)
+     ON CONFLICT(key) DO UPDATE SET
+       count = CASE WHEN ? - window_start >= ? THEN 1 ELSE count + 1 END,
+       window_start = CASE WHEN ? - window_start >= ? THEN ? ELSE window_start END`,
+  ).bind(
+    key, nowSeconds,
+    nowSeconds, COMMAND_WINDOW_SECONDS,
+    nowSeconds, COMMAND_WINDOW_SECONDS, nowSeconds,
+  ).run();
+
+  if (Math.random() < 0.05) {
+    await env.DB.prepare('DELETE FROM rate_limits WHERE window_start < ?')
+      .bind(nowSeconds - 3600).run();
+  }
 }
 
 /* ===================================================================
@@ -810,6 +852,13 @@ async function handleCreateCommand(request, env, householdId) {
     if (existing) return ok(commandDto(existing));
   }
 
+  const rate = await isCommandRateLimited(env, session.member_id);
+  if (rate.limited) {
+    return fail('RATE_LIMITED', 'Too many commands, try again shortly', 429, {
+      retryAfter: rate.retryAfter,
+    });
+  }
+
   const createdAt = nowIso();
   const expiresAt = addSecondsIso(COMMAND_TTL_SECONDS);
 
@@ -827,6 +876,8 @@ async function handleCreateCommand(request, env, householdId) {
        (id, household_id, device_id, action, status, idempotency_key, created_by, created_at, expires_at, acked_at, error)
      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, NULL, NULL)`,
   ).bind(id, householdId, deviceId, action, idempotencyKey, session.member_id, createdAt, expiresAt).run();
+
+  await recordCommandAttempt(env, rate.key, rate.nowSeconds);
 
   await audit(env, householdId, 'member', session.member_id, 'command.create', {
     commandId: id,

@@ -786,7 +786,7 @@ loop:
 - **Auth ทุก endpoint** ยกเว้น `/health`, `/auth/join`, `/auth/login`
 - **CORS allowlist** เฉพาะ Pages domain/localhost; native app ไม่ต้องใช้ CORS
 - **Rate limit** login/join: 5 failed attempts/minute/IP (shared bucket), password change: separate 5/minute/IP bucket; `429 RATE_LIMITED`
-- **Command rate limit** (10/minute/user) ยังไม่ implement — ต้องใช้ D1 counter เพิ่มถ้าจำเป็น
+- **Command rate limit**: 10 commands/minute/member (per member, not per IP); `429 RATE_LIMITED` + `retryAfter`
 - **Input validation** ทุก field
 - **Secrets** ผ่าน `wrangler secret put`:
   - `SETUP_TOKEN` (ใช้ครั้งเดียวตอนสร้าง household)
@@ -1132,16 +1132,17 @@ Worker v2 and D1 are deployed and verified end-to-end.
 | Worker URL | `https://water-valve-api-v2.czqwertyyy.workers.dev` |
 | Worker name | `water-valve-api-v2` |
 | D1 database | `water-valve-v2` (APAC, id `7ed1f52f-759e-4edd-a936-847c7277b824`) |
-| Schema | `migrations/0001_init.sql` + `0002_auth_attempts.sql` applied remotely |
+| Schema | `migrations/0001_init.sql` + `0002_auth_attempts.sql` + `0003_rate_limits.sql` applied remotely |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
 | Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
-| API smoke test | 92/92 checks pass against production (auth, rate limit, state, config revision/If-Match, 8-schedule limit, devices-aware ETag, commands, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and `auth_attempts` deleted afterwards |
+| API smoke test | 95/95 checks pass against production (auth, rate limit, state, config revision/If-Match, 8-schedule limit, devices-aware ETag, commands, command rate limit, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and rate-limit rows deleted afterwards |
 
 Deploy/update commands:
 
 ```powershell
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0002_auth_attempts.sql
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0003_rate_limits.sql
 $env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
 $env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
 npx wrangler deploy --config wrangler.v2.toml

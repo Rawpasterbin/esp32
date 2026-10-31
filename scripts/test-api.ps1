@@ -470,7 +470,20 @@ $newSync = Invoke-Api POST '/v1/devices/sync' -Headers @{
 } -Body @{ valve = $false; mode = 'manual' }
 Assert-Equal $newSync.Status 200 'new device token works'
 
-# 28. Repeated failed logins are rate limited per client IP.
+# 28. Command creation is limited per member (10/minute).
+$commandStatuses = @()
+$lastCommandRate = $null
+for ($i = 1; $i -le 11; $i++) {
+  $lastCommandRate = Invoke-Api POST "/v1/households/$householdIdB/commands" -Headers $authBNew -Body @{
+    deviceId = $deviceIdB; action = 'close'; idempotencyKey = "rate-limit-$i"
+  }
+  $commandStatuses += $lastCommandRate.Status
+}
+Assert-Equal $commandStatuses[9] 201 '10th command in a minute is accepted'
+Assert-Equal $commandStatuses[10] 429 '11th command in a minute is rate limited'
+Assert-Equal $lastCommandRate.Json.error.code 'RATE_LIMITED' 'command rate limit uses RATE_LIMITED'
+
+# 29. Repeated failed logins are rate limited per client IP.
 # This intentionally trips the limiter for the current IP. If the suite is
 # re-run within a minute, clear auth_attempts first:
 #   npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote `

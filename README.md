@@ -23,6 +23,7 @@ ESP32 (A7672X) ──MQTT/TLS 8883──> HiveMQ Cloud
 | `worker/v2/index.js` | Worker API: auth, state, config revision, commands, device sync/ack |
 | `migrations/0001_init.sql` | D1 schema |
 | `migrations/0002_auth_attempts.sql` | Login/rate-limit table |
+| `migrations/0003_rate_limits.sql` | Per-member command rate-limit table |
 | `wrangler.v2.toml` | Worker/D1 config |
 | `scripts/test-api.ps1` | API smoke tests (local or production) |
 | `esp32_water_valve/` | Firmware + wiring/provisioning README |
@@ -38,6 +39,7 @@ npx wrangler dev --config wrangler.v2.toml --local --port 8787
 # Terminal 2 (first time only)
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0002_auth_attempts.sql
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0003_rate_limits.sql
 powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```
 
@@ -48,6 +50,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```powershell
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0002_auth_attempts.sql
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0003_rate_limits.sql
 $env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
 $env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
 npx wrangler deploy --config wrangler.v2.toml
@@ -109,7 +112,7 @@ single-TLS-session limitation, safety behavior, and data budget.
 
 Implemented and verified:
 
-- Worker v2 + D1 deployed; 92/92 API checks pass against production (including cross-household isolation, device-token scope, logout revocation, password/device-token rotation, and auth rate limiting).
+- Worker v2 + D1 deployed; 95/95 API checks pass against production (including cross-household isolation, device-token scope, logout revocation, password/device-token rotation, and login/command rate limiting).
 - **v1 scope: one household/valve per MQTT deployment** — firmware topics are still global; see `docs/SECURITY.md`.
 - Config revision + `If-Match` conflict handling.
 - Command queue with idempotency, 20-minute TTL, latest-wins supersede.
