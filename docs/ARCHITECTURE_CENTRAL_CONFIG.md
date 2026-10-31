@@ -1107,7 +1107,7 @@ Worker v2 and D1 are deployed and verified end-to-end.
 | Schema | `migrations/0001_init.sql` applied remotely (15 statements) |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
 | Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
-| API smoke test | 54/54 checks pass against production, test household deleted afterwards |
+| API smoke test | 71/71 checks pass against production (auth, state, config revision/If-Match, commands, sync/ack, cross-household isolation, device-token scope, logout revocation); test households deleted afterwards |
 
 Deploy/update commands:
 

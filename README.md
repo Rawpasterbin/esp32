@@ -87,7 +87,7 @@ single-TLS-session limitation, safety behavior, and data budget.
 
 Implemented and verified:
 
-- Worker v2 + D1 deployed; 54/54 API checks pass against production.
+- Worker v2 + D1 deployed; 71/71 API checks pass against production (including cross-household isolation, device-token scope, logout revocation).
 - Config revision + `If-Match` conflict handling.
 - Command queue with idempotency, 20-minute TTL, latest-wins supersede.
 - Android login, dashboard, mode/schedule editing, command queue, Keystore token.

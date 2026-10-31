@@ -321,5 +321,74 @@ Assert-Equal $sync6.Json.data.command.id $cmdB.Json.data.commandId 'device recei
 $ackB = Invoke-Api POST "/v1/devices/commands/$($cmdB.Json.data.commandId)/ack" -Headers $deviceAuth -Body @{ status = 'acked'; error = $null }
 Assert-Equal $ackB.Status 200 'newest command ack returns 200'
 
+# 22. A second household is fully isolated from the first.
+$setupB = Invoke-Api POST '/v1/setup' -Headers @{ 'X-Setup-Token' = $setupToken } -Body @{
+  householdName = 'Other House'
+  password      = 'other-password-456'
+  deviceName    = 'Other Valve'
+}
+Assert-Equal $setupB.Status 201 'second setup returns 201'
+$inviteCodeB = $setupB.Json.data.inviteCode
+$deviceIdB = $setupB.Json.data.deviceId
+$deviceTokenB = $setupB.Json.data.deviceToken
+
+$joinB = Invoke-Api POST '/v1/auth/join' -Body @{
+  inviteCode  = $inviteCodeB
+  password    = 'other-password-456'
+  displayName = 'Phone B'
+}
+Assert-Equal $joinB.Status 201 'second household join returns 201'
+$tokenB = $joinB.Json.data.token
+$householdIdB = $joinB.Json.data.household.id
+$memberIdB = $joinB.Json.data.member.id
+$authB = @{ Authorization = "Bearer $tokenB" }
+
+$crossState = Invoke-Api GET "/v1/households/$householdId/state" -Headers $authB
+Assert-Equal $crossState.Status 403 'second household cannot read first state'
+$crossConfig = Invoke-Api PUT "/v1/households/$householdId/config" -Headers $authB -Body @{
+  mode = 'auto'; baseRevision = 4; schedules = @()
+}
+Assert-Equal $crossConfig.Status 403 'second household cannot write first config'
+$crossList = Invoke-Api GET "/v1/households/$householdId/commands" -Headers $authB
+Assert-Equal $crossList.Status 403 'second household cannot list first commands'
+$crossCommand = Invoke-Api POST "/v1/households/$householdId/commands" -Headers $authB -Body @{
+  deviceId = $deviceId; action = 'open'; idempotencyKey = 'cross-house'
+}
+Assert-Equal $crossCommand.Status 403 'second household cannot command first device'
+
+# 23. Device tokens are scoped to their own device and household.
+$crossAck = Invoke-Api POST "/v1/devices/commands/$($cmdB.Json.data.commandId)/ack" -Headers @{
+  Authorization = "Bearer $deviceTokenB"
+} -Body @{ status = 'acked' }
+Assert-Equal $crossAck.Status 404 'device cannot ack another household command'
+$syncB = Invoke-Api POST '/v1/devices/sync' -Headers @{ Authorization = "Bearer $deviceTokenB" } -Body @{
+  valve = $false; mode = 'manual'; firmwareVersion = '2.1.0-test'
+}
+Assert-Equal $syncB.Status 200 'second device sync returns 200'
+Assert-Equal $syncB.Json.data.revision 1 'second device sees its own revision'
+Assert-True ($null -eq $syncB.Json.data.command) 'second device does not see first household command'
+
+# 24. /v1/me returns identity and logout revokes the session.
+$meB = Invoke-Api GET '/v1/me' -Headers $authB
+Assert-Equal $meB.Status 200 'me returns 200'
+Assert-Equal $meB.Json.data.household.id $householdIdB 'me returns the right household'
+$logoutB = Invoke-Api POST '/v1/auth/logout' -Headers $authB
+Assert-Equal $logoutB.Status 200 'logout returns 200'
+$meAfterLogout = Invoke-Api GET '/v1/me' -Headers $authB
+Assert-Equal $meAfterLogout.Status 401 'revoked token is rejected'
+$stateAfterLogout = Invoke-Api GET "/v1/households/$householdIdB/state" -Headers $authB
+Assert-Equal $stateAfterLogout.Status 401 'revoked token cannot read state'
+
+# 25. Login with the stored memberId reuses the member and issues a new token.
+$reloginB = Invoke-Api POST '/v1/auth/login' -Body @{
+  inviteCode = $inviteCodeB; password = 'other-password-456'; memberId = $memberIdB
+}
+Assert-Equal $reloginB.Status 200 'login with memberId returns 200'
+Assert-Equal $reloginB.Json.data.member.id $memberIdB 'login reuses the existing member'
+$stateB = Invoke-Api GET "/v1/households/$householdIdB/state" -Headers @{
+  Authorization = "Bearer $($reloginB.Json.data.token)"
+}
+Assert-Equal $stateB.Status 200 'new session can read its household state'
+
 Write-Host ''
 Write-Host 'All API smoke tests passed.' -ForegroundColor Cyan
