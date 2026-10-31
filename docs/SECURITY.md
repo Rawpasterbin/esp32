@@ -59,12 +59,14 @@ git push --force --tags
 - Device token เก็บเฉพาะ hash (SHA-256) ใน D1; token จริงอยู่ใน firmware NVS
 - Member session token เก็บเฉพาะ hash ใน D1; ฝั่ง Android เข้ารหัสด้วย Android Keystore (AES-GCM)
 - ห้าม log token/password; firmware `show` แสดงเฉพาะค่า mask
-- ถ้า token รั่ว: revoke session/device แล้วออก token ใหม่ (ยังไม่มี endpoint rotate device token;
-  ต้องสร้าง device ใหม่หรือเพิ่ม endpoint ใน phase ถัดไป)
+- ถ้า token รั่ว: ใช้ `POST /v1/households/:hid/devices/:did/rotate-token` ออก device token ใหม่
+  (plaintext คืนครั้งเดียว) แล้ว provision firmware ผ่าน serial; session ที่สงสัยให้ logout/เปลี่ยนรหัสบ้าน
 
 ## Current status
 
 - [x] ลบ MQTT credential ออกจาก `wrangler.toml` และเอกสารใน working tree
+- [x] เพิ่ม endpoint เปลี่ยนรหัสบ้าน + rotate device token (revoke session อื่นอัตโนมัติ)
+- [x] Rate limit login/join/password change (5 failed attempts/min/IP; ตาราง `auth_attempts`)
 - [ ] Rotate HiveMQ credential (ต้องทำที่ console — ยังไม่ได้ทำ)
 - [ ] อัปเดต firmware ที่ติดตั้งจริงด้วย credential ใหม่
 - [ ] (optional) ล้าง git history และ force-push

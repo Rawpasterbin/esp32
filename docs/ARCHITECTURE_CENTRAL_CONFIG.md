@@ -163,7 +163,7 @@
 - อนาคต: เพิ่ม users/roles/OAuth ได้โดยไม่เปลี่ยน API หลัก
 
 **ข้อดี:** ง่ายสำหรับครอบครัว, ไม่ต้องทำระบบ email/สมัครสมาชิก
-**ข้อจำกัด:** ใครรู้ invite code + password ก็เข้าบ้านได้; ต้อง rotate รหัสได้และจำกัด rate limit
+**ข้อจำกัด:** ใครรู้ invite code + password ก็เข้าบ้านได้; มี endpoint เปลี่ยนรหัสบ้านและ rate limit 5 failed attempts/min/IP แล้ว แต่ยังไม่มี role รายคนหรือ 2FA
 
 ### 4.4 Real-time และ data budget (ESP32 บนซิม 399 MB/เดือน)
 
@@ -382,7 +382,7 @@ HTTP status: 400, 401, 403, 404, 409, 410, 422, 429, 500
 
 - `memberId` ไม่บังคับ; ถ้าระบุและตรงกับ household → ใช้ member เดิม
 - ถ้าไม่ระบุ → สร้าง member ใหม่ (เช่น login จากเครื่องใหม่)
-- Rate limit: 5 ครั้ง/นาที/IP
+- Rate limit: 5 ครั้ง/นาที/IP (นับเฉพาะครั้งที่ล้มเหลว; join/login ใช้ bucket ร่วมกัน; สำเร็จแล้วล้างตัวนับ)
 
 #### `POST /v1/auth/logout`
 
@@ -399,6 +399,27 @@ Revoke session
   }
 }
 ```
+
+#### `POST /v1/households/:hid/password`
+
+เปลี่ยนรหัสบ้าน ต้องมี session ของ household นั้น
+
+```json
+{ "currentPassword": "...", "newPassword": "..." }
+```
+
+- `newPassword` อย่างน้อย 8 ตัวอักษร และต้องต่างจากรหัสเดิม
+- รหัสปัจจุบันผิด → `401 UNAUTHORIZED`
+- สำเร็จ → revoke session อื่นทั้งหมดของ household (session ที่เรียกยังใช้ได้)
+- audit: `household.password.change`
+
+#### `POST /v1/households/:hid/devices/:did/rotate-token`
+
+ออก device token ใหม่ (คืน plaintext ครั้งเดียว; D1 เก็บเฉพาะ hash)
+
+- ต้องเป็นสมาชิกของ household และ device ต้องอยู่ใน household นั้น
+- token เก่าใช้ไม่ได้ทันที → ต้อง provision firmware ใหม่ผ่าน serial
+- audit: `device.token.rotate`
 
 ### 6.3 State (อ่านค่าที่ทุกเครื่องต้องเห็นเหมือนกัน)
 
@@ -761,12 +782,13 @@ loop:
 
 - **Auth ทุก endpoint** ยกเว้น `/health`, `/auth/join`, `/auth/login`
 - **CORS allowlist** เฉพาะ Pages domain/localhost; native app ไม่ต้องใช้ CORS
-- **Rate limit** login (5 ครั้ง/นาที/IP), command (10/นาที/user)
+- **Rate limit** login/join: 5 failed attempts/minute/IP (shared bucket), password change: separate 5/minute/IP bucket; `429 RATE_LIMITED`
+- **Command rate limit** (10/minute/user) ยังไม่ implement — ต้องใช้ D1 counter เพิ่มถ้าจำเป็น
 - **Input validation** ทุก field
 - **Secrets** ผ่าน `wrangler secret put`:
-  - `SESSION_PEPPER`
-  - `DEVICE_TOKEN_PEPPER`
-  - `MQTT_PASS` (ถ้ายังใช้ MQTT)
+  - `SETUP_TOKEN` (ใช้ครั้งเดียวตอนสร้าง household)
+  - `MQTT_USER` / `MQTT_PASS` (เฉพาะ Worker เก่าที่ยังใช้ MQTT)
+- **Token hashing**: session/device token เป็น random 256-bit; D1 เก็บ SHA-256 hash (ไม่ต้องใช้ pepper เพราะ entropy สูงอยู่แล้ว)
 - **ไม่ log** token/password
 - **Device token** แยกจาก user token; revoke ได้
 - **HTTPS only**; HSTS
@@ -870,7 +892,8 @@ loop:
 - [ ] Push notification (FCM)
 - [ ] Audit log UI
 - [ ] Multi-device UI
-- [ ] Rate limit/observability
+- [x] Rate limit login/join/password change (5 failures/min/IP) + audit log
+- [ ] Observability (Workers logs/metrics, alerting)
 - [ ] Accessibility 90+
 
 ### Phase 6 — Cleanup (1–2 วัน)
@@ -1106,15 +1129,16 @@ Worker v2 and D1 are deployed and verified end-to-end.
 | Worker URL | `https://water-valve-api-v2.czqwertyyy.workers.dev` |
 | Worker name | `water-valve-api-v2` |
 | D1 database | `water-valve-v2` (APAC, id `7ed1f52f-759e-4edd-a936-847c7277b824`) |
-| Schema | `migrations/0001_init.sql` applied remotely (15 statements) |
+| Schema | `migrations/0001_init.sql` + `0002_auth_attempts.sql` applied remotely |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
 | Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
-| API smoke test | 71/71 checks pass against production (auth, state, config revision/If-Match, commands, sync/ack, cross-household isolation, device-token scope, logout revocation); test households deleted afterwards |
+| API smoke test | 88/88 checks pass against production (auth, rate limit, state, config revision/If-Match, commands, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and `auth_attempts` deleted afterwards |
 
 Deploy/update commands:
 
 ```powershell
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0002_auth_attempts.sql
 $env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
 $env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
 npx wrangler deploy --config wrangler.v2.toml

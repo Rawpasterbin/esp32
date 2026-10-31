@@ -389,6 +389,84 @@ $stateB = Invoke-Api GET "/v1/households/$householdIdB/state" -Headers @{
   Authorization = "Bearer $($reloginB.Json.data.token)"
 }
 Assert-Equal $stateB.Status 200 'new session can read its household state'
+$authBNew = @{ Authorization = "Bearer $($reloginB.Json.data.token)" }
+
+# 26. Household password rotation revokes other sessions but not the caller.
+$joinB2 = Invoke-Api POST '/v1/auth/join' -Body @{
+  inviteCode = $inviteCodeB; password = 'other-password-456'; displayName = 'Phone B2'
+}
+Assert-Equal $joinB2.Status 201 'second session for household B returns 201'
+$authB2 = @{ Authorization = "Bearer $($joinB2.Json.data.token)" }
+
+$badRotate = Invoke-Api POST "/v1/households/$householdIdB/password" -Headers $authBNew -Body @{
+  currentPassword = 'wrong-password'; newPassword = 'new-password-789'
+}
+Assert-Equal $badRotate.Status 401 'password rotation rejects a wrong current password'
+$shortRotate = Invoke-Api POST "/v1/households/$householdIdB/password" -Headers $authBNew -Body @{
+  currentPassword = 'other-password-456'; newPassword = 'short'
+}
+Assert-Equal $shortRotate.Status 422 'password rotation rejects a short new password'
+$crossRotate = Invoke-Api POST "/v1/households/$householdIdB/password" -Headers $auth -Body @{
+  currentPassword = 'test-password-123'; newPassword = 'new-password-789'
+}
+Assert-Equal $crossRotate.Status 403 'another household cannot change the password'
+
+$rotate = Invoke-Api POST "/v1/households/$householdIdB/password" -Headers $authBNew -Body @{
+  currentPassword = 'other-password-456'; newPassword = 'new-password-789'
+}
+Assert-Equal $rotate.Status 200 'password rotation returns 200'
+
+$oldLogin = Invoke-Api POST '/v1/auth/login' -Body @{
+  inviteCode = $inviteCodeB; password = 'other-password-456'
+}
+Assert-Equal $oldLogin.Status 401 'old household password no longer works'
+$newLogin = Invoke-Api POST '/v1/auth/login' -Body @{
+  inviteCode = $inviteCodeB; password = 'new-password-789'
+}
+Assert-Equal $newLogin.Status 200 'new household password works'
+$revokedB2 = Invoke-Api GET '/v1/me' -Headers $authB2
+Assert-Equal $revokedB2.Status 401 'password rotation revokes other sessions'
+$meBAfterRotate = Invoke-Api GET '/v1/me' -Headers $authBNew
+Assert-Equal $meBAfterRotate.Status 200 'the rotating session stays valid'
+
+# 27. Device token rotation invalidates the old token immediately.
+$crossTokenRotate = Invoke-Api POST "/v1/households/$householdIdB/devices/$deviceIdB/rotate-token" -Headers $auth
+Assert-Equal $crossTokenRotate.Status 403 'another household cannot rotate the device token'
+$missingRotate = Invoke-Api POST "/v1/households/$householdIdB/devices/does-not-exist/rotate-token" -Headers $authBNew
+Assert-Equal $missingRotate.Status 404 'device token rotation rejects an unknown device'
+
+$rotateToken = Invoke-Api POST "/v1/households/$householdIdB/devices/$deviceIdB/rotate-token" -Headers $authBNew
+Assert-Equal $rotateToken.Status 200 'device token rotation returns 200'
+$newDeviceTokenB = $rotateToken.Json.data.deviceToken
+Assert-True ([bool]$newDeviceTokenB -and $newDeviceTokenB -ne $deviceTokenB) 'rotation returns a new device token'
+
+$oldSync = Invoke-Api POST '/v1/devices/sync' -Headers @{
+  Authorization = "Bearer $deviceTokenB"
+} -Body @{ valve = $false; mode = 'manual' }
+Assert-Equal $oldSync.Status 401 'old device token is rejected'
+$newSync = Invoke-Api POST '/v1/devices/sync' -Headers @{
+  Authorization = "Bearer $newDeviceTokenB"
+} -Body @{ valve = $false; mode = 'manual' }
+Assert-Equal $newSync.Status 200 'new device token works'
+
+# 28. Repeated failed logins are rate limited per client IP.
+# This intentionally trips the limiter for the current IP. If the suite is
+# re-run within a minute, clear auth_attempts first:
+#   npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote `
+#     --command "DELETE FROM auth_attempts;"
+$limitedStatus = 0
+for ($i = 0; $i -lt 6; $i++) {
+  $limited = Invoke-Api POST '/v1/auth/login' -Body @{
+    inviteCode = $inviteCodeB; password = 'definitely-wrong'
+  }
+  $limitedStatus = $limited.Status
+  if ($limitedStatus -eq 429) { break }
+}
+Assert-Equal $limitedStatus 429 'repeated failed logins are rate limited'
+$blockedCorrect = Invoke-Api POST '/v1/auth/login' -Body @{
+  inviteCode = $inviteCodeB; password = 'new-password-789'
+}
+Assert-Equal $blockedCorrect.Status 429 'rate limit blocks a correct password during the window'
 
 Write-Host ''
 Write-Host 'All API smoke tests passed.' -ForegroundColor Cyan

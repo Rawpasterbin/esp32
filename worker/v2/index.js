@@ -10,7 +10,7 @@
  *
  * Design notes:
  * - Config is the source of truth; every write increments `revision`.
- * - Commands are short-lived (60s) and are never permanent state.
+ * - Commands are short-lived (20 min, covering the device sync interval).
  * - ESP32 uses MQTT for instant control/status and this API for config sync.
  * - Passwords: PBKDF2-SHA256 (100k iterations) via WebCrypto.
  */
@@ -18,6 +18,8 @@
 const PBKDF2_ITERATIONS = 100000;
 const SESSION_DAYS = 30;
 const COMMAND_TTL_SECONDS = 20 * 60; // must exceed the device's 15-minute sync interval
+const AUTH_WINDOW_SECONDS = 60;
+const AUTH_MAX_FAILURES = 5;
 
 const DEFAULT_SCHEDULES = [
   {
@@ -280,6 +282,59 @@ async function audit(env, householdId, actorType, actorId, action, detail) {
 }
 
 /* ===================================================================
+ * Failed-auth throttling
+ * =================================================================== */
+
+function authAttemptKey(request, scope) {
+  const ip = request.headers.get('cf-connecting-ip');
+  return ip ? `${scope}:${ip}` : null;
+}
+
+async function isAuthRateLimited(env, request, scope) {
+  const key = authAttemptKey(request, scope);
+  if (!key) return { limited: false, key: null, retryAfter: 0 };
+
+  const row = await env.DB.prepare(
+    'SELECT window_start, failures FROM auth_attempts WHERE key = ?',
+  ).bind(key).first();
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const elapsed = row ? nowSeconds - row.window_start : AUTH_WINDOW_SECONDS;
+  if (row && elapsed < AUTH_WINDOW_SECONDS && row.failures >= AUTH_MAX_FAILURES) {
+    return { limited: true, key, retryAfter: AUTH_WINDOW_SECONDS - elapsed };
+  }
+  return { limited: false, key, retryAfter: 0 };
+}
+
+async function recordAuthFailure(env, key) {
+  if (!key) return;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  // Reset the counter when the previous window has elapsed, otherwise increment.
+  await env.DB.prepare(
+    `INSERT INTO auth_attempts (key, window_start, failures) VALUES (?, ?, 1)
+     ON CONFLICT(key) DO UPDATE SET
+       failures = CASE WHEN ? - window_start >= ? THEN 1 ELSE failures + 1 END,
+       window_start = CASE WHEN ? - window_start >= ? THEN ? ELSE window_start END`,
+  ).bind(
+    key, nowSeconds,
+    nowSeconds, AUTH_WINDOW_SECONDS,
+    nowSeconds, AUTH_WINDOW_SECONDS, nowSeconds,
+  ).run();
+
+  // Opportunistic cleanup keeps the table small without a cron trigger.
+  if (Math.random() < 0.05) {
+    await env.DB.prepare('DELETE FROM auth_attempts WHERE window_start < ?')
+      .bind(nowSeconds - 3600).run();
+  }
+}
+
+async function clearAuthFailures(env, key) {
+  if (!key) return;
+  await env.DB.prepare('DELETE FROM auth_attempts WHERE key = ?').bind(key).run();
+}
+
+/* ===================================================================
  * Responses / CORS
  * =================================================================== */
 
@@ -415,11 +470,23 @@ async function handleJoin(request, env) {
     return fail('VALIDATION', 'displayName must be at most 50 characters', 422);
   }
 
+  const rate = await isAuthRateLimited(env, request, 'login');
+  if (rate.limited) {
+    return fail('RATE_LIMITED', 'Too many failed attempts, try again shortly', 429);
+  }
+
   const household = await env.DB.prepare('SELECT * FROM households WHERE invite_code = ?').bind(inviteCode).first();
-  if (!household) return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  if (!household) {
+    await recordAuthFailure(env, rate.key);
+    return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  }
 
   const valid = await verifyPassword(password, household.password_hash);
-  if (!valid) return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  if (!valid) {
+    await recordAuthFailure(env, rate.key);
+    return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  }
+  await clearAuthFailures(env, rate.key);
 
   const memberId = uuid();
   const createdAt = nowIso();
@@ -449,11 +516,23 @@ async function handleLogin(request, env) {
     return fail('VALIDATION', 'inviteCode and password are required', 422);
   }
 
+  const rate = await isAuthRateLimited(env, request, 'login');
+  if (rate.limited) {
+    return fail('RATE_LIMITED', 'Too many failed attempts, try again shortly', 429);
+  }
+
   const household = await env.DB.prepare('SELECT * FROM households WHERE invite_code = ?').bind(inviteCode).first();
-  if (!household) return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  if (!household) {
+    await recordAuthFailure(env, rate.key);
+    return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  }
 
   const valid = await verifyPassword(password, household.password_hash);
-  if (!valid) return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  if (!valid) {
+    await recordAuthFailure(env, rate.key);
+    return fail('UNAUTHORIZED', 'Invalid invite code or password', 401);
+  }
+  await clearAuthFailures(env, rate.key);
 
   let memberId = body.memberId ? String(body.memberId) : null;
   let member = null;
@@ -493,6 +572,82 @@ async function handleLogout(request, env) {
   await env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE id = ?')
     .bind(nowIso(), session.session_id).run();
   return ok({ revoked: true });
+}
+
+async function handleChangePassword(request, env, householdId) {
+  const session = await getSession(request, env);
+  if (!session) return fail('UNAUTHORIZED', 'Invalid or expired session', 401);
+  if (session.household_id !== householdId) return fail('FORBIDDEN', 'Not a member of this household', 403);
+
+  const body = await readJson(request);
+  if (!body) return fail('BAD_REQUEST', 'Invalid JSON body', 400);
+
+  const currentPassword = String(body.currentPassword || '');
+  const newPassword = String(body.newPassword || '');
+  if (!currentPassword || !newPassword) {
+    return fail('VALIDATION', 'currentPassword and newPassword are required', 422);
+  }
+  if (newPassword.length < 8) {
+    return fail('VALIDATION', 'newPassword must be at least 8 characters', 422);
+  }
+  if (newPassword.length > 200) {
+    return fail('VALIDATION', 'newPassword must be at most 200 characters', 422);
+  }
+  if (newPassword === currentPassword) {
+    return fail('VALIDATION', 'newPassword must differ from currentPassword', 422);
+  }
+
+  const rate = await isAuthRateLimited(env, request, 'password');
+  if (rate.limited) {
+    return fail('RATE_LIMITED', 'Too many failed attempts, try again shortly', 429);
+  }
+
+  const household = await env.DB.prepare('SELECT * FROM households WHERE id = ?').bind(householdId).first();
+  if (!household) return fail('NOT_FOUND', 'Household not found', 404);
+
+  const valid = await verifyPassword(currentPassword, household.password_hash);
+  if (!valid) {
+    await recordAuthFailure(env, rate.key);
+    return fail('UNAUTHORIZED', 'Current password is incorrect', 401);
+  }
+  await clearAuthFailures(env, rate.key);
+
+  const passwordHash = await hashPassword(newPassword);
+  const revokedAt = nowIso();
+
+  // Keep the caller signed in; every other session for this household must
+  // re-authenticate with the new password.
+  await env.DB.batch([
+    env.DB.prepare('UPDATE households SET password_hash = ? WHERE id = ?')
+      .bind(passwordHash, householdId),
+    env.DB.prepare(
+      `UPDATE sessions SET revoked_at = ?
+       WHERE revoked_at IS NULL AND id != ?
+         AND member_id IN (SELECT id FROM members WHERE household_id = ?)`,
+    ).bind(revokedAt, session.session_id, householdId),
+  ]);
+
+  await audit(env, householdId, 'member', session.member_id, 'household.password.change', {});
+  return ok({ updated: true, revokedAt });
+}
+
+async function handleRotateDeviceToken(request, env, householdId, deviceId) {
+  const session = await getSession(request, env);
+  if (!session) return fail('UNAUTHORIZED', 'Invalid or expired session', 401);
+  if (session.household_id !== householdId) return fail('FORBIDDEN', 'Not a member of this household', 403);
+
+  const device = await env.DB.prepare('SELECT id FROM devices WHERE id = ? AND household_id = ?')
+    .bind(deviceId, householdId).first();
+  if (!device) return fail('NOT_FOUND', 'Device not found', 404);
+
+  // The plaintext token is returned exactly once; D1 keeps only its hash.
+  const deviceToken = `dev_${toB64Url(crypto.getRandomValues(new Uint8Array(32)))}`;
+  const tokenHash = await sha256Hex(deviceToken);
+  await env.DB.prepare('UPDATE devices SET token_hash = ? WHERE id = ?')
+    .bind(tokenHash, deviceId).run();
+
+  await audit(env, householdId, 'member', session.member_id, 'device.token.rotate', { deviceId });
+  return ok({ deviceId, deviceToken });
 }
 
 async function handleMe(request, env) {
@@ -856,6 +1011,12 @@ async function handleRequest(request, env) {
 
   match = path.match(/^\/v1\/households\/([^/]+)\/config$/);
   if (match && request.method === 'PUT') return handlePutConfig(request, env, match[1]);
+
+  match = path.match(/^\/v1\/households\/([^/]+)\/password$/);
+  if (match && request.method === 'POST') return handleChangePassword(request, env, match[1]);
+
+  match = path.match(/^\/v1\/households\/([^/]+)\/devices\/([^/]+)\/rotate-token$/);
+  if (match && request.method === 'POST') return handleRotateDeviceToken(request, env, match[1], match[2]);
 
   match = path.match(/^\/v1\/households\/([^/]+)\/commands$/);
   if (match && request.method === 'POST') return handleCreateCommand(request, env, match[1]);
