@@ -54,7 +54,7 @@
 
 ## 5. Worker sync + command queue
 
-- [ ] สร้าง household/device ด้วย `scripts/create-household.ps1` เก็บ `deviceToken` (ไฟล์นอก repo)
+- [x] สร้าง household/device ด้วย `scripts/create-household.ps1` เก็บ `deviceToken` (ไฟล์นอก repo) — `Home` สร้างแล้ว
 - [ ] `set token dev_...`, `set url https://water-valve-api-v2.czqwertyyy.workers.dev`
 - [ ] `sync` → D1 `devices.last_seen_at` อัปเดต
 - [ ] แก้ mode/schedule ในแอป → `sync` → firmware ได้ revision ใหม่

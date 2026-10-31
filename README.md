@@ -113,6 +113,8 @@ single-TLS-session limitation, safety behavior, and data budget.
 Implemented and verified:
 
 - Worker v2 + D1 deployed; 95/95 API checks pass against production (including cross-household isolation, device-token scope, logout revocation, password/device-token rotation, and login/command rate limiting).
+- Production household `Home` + device created (credentials outside the repo); device sync verified against production.
+- Debug APK: `C:\Temp\opencode\water-valve-2.0-native-debug.apk` (installable; release build is unsigned).
 - **v1 scope: one household/valve per MQTT deployment** — firmware topics are still global; see `docs/SECURITY.md`.
 - Config revision + `If-Match` conflict handling.
 - Command queue with idempotency, 20-minute TTL, latest-wins supersede.

@@ -183,6 +183,10 @@ same timezone as the valve.
 > per-device topics or scoped credentials are implemented. See
 > `../docs/SECURITY.md`.
 
+MQTT is optional for v1: if `mqttuser`/`mqttpass` are empty, the device still
+connects, syncs config every 15 minutes, and runs schedules/queued commands.
+The only difference is that real-time MQTT control/status is unavailable.
+
 Default prefix: `myhouse/valve/`.
 
 | Topic | Direction | Payload |
