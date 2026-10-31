@@ -9,7 +9,8 @@
  *
  * Safety:
  *  - Relay is driven to CLOSED at boot.
- *  - Every command carries a TTL (60 s) and a commandId (idempotent).
+ *  - Every command carries a TTL (20 min for the HTTPS queue, optional for
+ *    MQTT) and a commandId (idempotent, last 8 IDs remembered).
  *  - MAX_OPEN_MINUTES is enforced locally, even with no network.
  *  - Overnight schedules (e.g. 22:00-06:00) use the previous day's flag
  *    for the after-midnight part.
@@ -91,6 +92,7 @@ const unsigned long MQTT_RETRY_MAX_MS = 5UL * 60UL * 1000UL;
 const unsigned long CLOCK_RETRY_MS = 30UL * 1000UL;
 const uint16_t MQTT_BUFFER_SIZE = 1024;
 const uint8_t MAX_SCHEDULES = 8;
+const uint8_t RECENT_COMMAND_SLOTS = 8;
 const uint16_t DEFAULT_MAX_OPEN_MINUTES = 30;
 const uint16_t COMMAND_TTL_GRACE_S = 5; // allow small clock skew
 
@@ -151,6 +153,9 @@ String apnPass = "";
 String wifiSsid = "";
 String wifiPass = "";
 String lastCommandId = "";
+String recentCommandIds[RECENT_COMMAND_SLOTS];
+uint8_t recentCommandCount = 0;
+uint8_t recentCommandNext = 0;
 String lastRejectedId = "";
 String lastRejectedError = "";
 String fault = "";
@@ -333,6 +338,62 @@ void saveSchedules() {
   prefs.putUInt("revision", configRevision);
 }
 
+/* Recent command IDs survive reboots so a QoS1 redelivery of an old MQTT
+ * command cannot reopen the valve after a newer close command. */
+void saveRecentCommands() {
+  JsonDocument doc;
+  JsonArray array = doc.to<JsonArray>();
+  for (uint8_t i = 0; i < recentCommandCount; i++) {
+    array.add(recentCommandIds[i]);
+  }
+  String json;
+  serializeJson(doc, json);
+  prefs.putString("recentCmds", json);
+}
+
+void loadRecentCommands() {
+  recentCommandCount = 0;
+  recentCommandNext = 0;
+
+  String json = prefs.getString("recentCmds", "");
+  if (json.isEmpty()) return;
+
+  JsonDocument doc;
+  if (deserializeJson(doc, json)) return;
+  JsonArray array = doc.as<JsonArray>();
+  if (array.isNull()) return;
+
+  for (JsonVariant value : array) {
+    if (recentCommandCount >= RECENT_COMMAND_SLOTS) break;
+    String id = value.as<String>();
+    if (!id.isEmpty()) recentCommandIds[recentCommandCount++] = id;
+  }
+  recentCommandNext = recentCommandCount % RECENT_COMMAND_SLOTS;
+}
+
+bool commandAlreadyExecuted(const String &id) {
+  if (id.isEmpty()) return false;
+  if (id == lastCommandId) return true;
+  for (uint8_t i = 0; i < recentCommandCount; i++) {
+    if (recentCommandIds[i] == id) return true;
+  }
+  return false;
+}
+
+void rememberCommand(const String &id) {
+  if (id.isEmpty()) return;
+
+  bool known = commandAlreadyExecuted(id);
+  lastCommandId = id;
+  prefs.putString("lastCmdId", lastCommandId);
+  if (known) return;
+
+  recentCommandIds[recentCommandNext] = id;
+  recentCommandNext = (recentCommandNext + 1) % RECENT_COMMAND_SLOTS;
+  if (recentCommandCount < RECENT_COMMAND_SLOTS) recentCommandCount++;
+  saveRecentCommands();
+}
+
 /* ===================== Valve ===================== */
 
 void publishStatus();
@@ -368,7 +429,6 @@ void checkMaxRuntime() {
   fault = "max_runtime";
   Serial.println("SAFETY: max runtime reached, closing valve");
   setValve(false, "max_runtime");
-  publishStatus();
 }
 
 void autoCheck() {
@@ -481,6 +541,12 @@ void ensureClock() {
 
 bool executeCommand(const String &action, const String &commandId,
                     const String &expiresAt, bool requireTtl, String &error) {
+  // Idempotency must win over TTL: an already-executed command that is
+  // redelivered later must be acked, not reported as expired/failed.
+  if (commandAlreadyExecuted(commandId)) {
+    return true;
+  }
+
   time_t now = time(nullptr);
   time_t expires = isoToEpoch(expiresAt.c_str());
 
@@ -499,15 +565,6 @@ bool executeCommand(const String &action, const String &commandId,
     }
   }
 
-  if (!commandId.isEmpty() && commandId == lastCommandId) {
-    return true; // already executed (idempotent)
-  }
-
-  if (valveMode == "auto") {
-    error = "auto_mode";
-    return false;
-  }
-
   bool open;
   if (action == "open" || action == "on") {
     open = true;
@@ -518,16 +575,19 @@ bool executeCommand(const String &action, const String &commandId,
     return false;
   }
 
+  // Auto mode owns opening. Closing is always allowed so a manual close can
+  // stop the valve even after the household switched to auto mode.
+  if (open && valveMode == "auto") {
+    error = "auto_mode";
+    return false;
+  }
+
   if (open) {
     maxRuntimeLatched = false;
     if (fault == "max_runtime") fault = "";
   }
   setValve(open, commandId.isEmpty() ? "mqtt" : "command");
-
-  if (!commandId.isEmpty()) {
-    lastCommandId = commandId;
-    prefs.putString("lastCmdId", lastCommandId);
-  }
+  rememberCommand(commandId);
   return true;
 }
 
@@ -1161,6 +1221,8 @@ void loadConfig() {
   loadString("mode", valveMode, "manual");
   loadString("schedules", schedulesJson, "");
   loadString("lastCmdId", lastCommandId, "");
+  loadRecentCommands();
+  if (!lastCommandId.isEmpty()) rememberCommand(lastCommandId);
   loadString("token", deviceToken, "");
   loadString("url", workerUrl, DEFAULT_WORKER_URL);
   loadString("apn", apn, "internet");
@@ -1272,7 +1334,6 @@ void loop() {
         lastMqttAttempt = millis();
         if (mqttConnect()) {
           mqttRetryMs = MQTT_RETRY_MIN_MS;
-          if (millis() - lastSyncAt > 60000UL) lastSyncAt = 0;
         } else {
           mqttRetryMs = min(mqttRetryMs * 2, MQTT_RETRY_MAX_MS);
         }

@@ -15,7 +15,8 @@ ESP32 ──MQTT/TLS 8883──> HiveMQ Cloud <──MQTT/TLS── Android app
 ## What changed from v1
 
 - Mode and schedules come from Worker v2, not from the phone.
-- Every command has a `commandId` (idempotent) and a TTL (`expiresAt`).
+- Every command has a `commandId` (the last 8 are remembered across reboots,
+  so a QoS1 redelivery cannot execute twice) and a TTL (`expiresAt`).
 - Overnight schedules (for example 22:00–06:00) work correctly: the
   after-midnight part uses the previous day's flag.
 - The valve is forced **closed** at boot and closed again if it stays open
@@ -190,7 +191,10 @@ Control JSON:
 Supported `cmd`: `open`, `close`, `toggle`, `getStatus`, `sync`, `reboot`.
 `ON`/`OFF` remain for compatibility and have no TTL. Commands with an
 `expiresAt` are rejected when the local clock is past the TTL (plus 5 s
-grace). The same `commandId` is executed at most once.
+grace). The last 8 command IDs are remembered in NVS, so the same
+`commandId` is executed at most once even after a reboot or MQTT redelivery.
+Opening is rejected in auto mode (`auto_mode`); **closing is always allowed**
+so a manual close can stop the valve after the household switches to auto.
 
 Status JSON (abridged):
 
@@ -236,6 +240,10 @@ Content-Type: application/json
 }
 ```
 
+> An MQTT reconnect does **not** force an HTTPS sync. Sync runs on schedule,
+> right after a network reconnect, or when the serial `sync` command is used.
+> This keeps the SIM data budget predictable when MQTT flaps.
+
 The response contains `revision`, `mode`, `schedules`, an optional pending
 `command` and `serverTime`. If the clock is not set yet, `serverTime` is
 used to set it before evaluating schedules.
@@ -277,6 +285,8 @@ after the first week and increase `SYNC_INTERVAL_MS` if needed.
 - Relay is driven to **closed** before anything else in `setup()`.
 - `maxopen` (default 30 min) is enforced locally; the valve closes even if
   the network is down. The fault is reported as `max_runtime`.
+- A `close` command is accepted in both manual and auto mode. An `open`
+  command is accepted only in manual mode.
 - A new `open` command clears the latch; a schedule that becomes inactive
   also clears it.
 - Commands with a TTL are rejected if the clock is not synchronized.
