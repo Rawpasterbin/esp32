@@ -287,6 +287,9 @@ after the first week and increase `SYNC_INTERVAL_MS` if needed.
   the network is down. The fault is reported as `max_runtime`.
 - A `close` command is accepted in both manual and auto mode. An `open`
   command is accepted only in manual mode.
+- A manual `close` during an active auto schedule is latched in NVS and wins
+  until that window ends. Without the latch the 10-second `autoCheck` would
+  reopen the valve. Changing to manual mode clears the latch.
 - A new `open` command clears the latch; a schedule that becomes inactive
   also clears it.
 - Commands with a TTL are rejected if the clock is not synchronized.

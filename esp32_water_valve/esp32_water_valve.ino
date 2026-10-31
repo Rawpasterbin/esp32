@@ -162,6 +162,7 @@ String fault = "";
 
 bool valveOn = false;
 bool maxRuntimeLatched = false;
+bool scheduleSuppressed = false;
 bool tlsReady = false;
 bool modemReady = false;
 
@@ -432,20 +433,40 @@ void checkMaxRuntime() {
 }
 
 void autoCheck() {
-  if (valveMode != "auto") return;
+  if (valveMode != "auto") {
+    // Leaving auto mode invalidates a manual-close override.
+    if (scheduleSuppressed) {
+      scheduleSuppressed = false;
+      prefs.putBool("schedSuppress", false);
+    }
+    return;
+  }
+
   time_t now = time(nullptr);
   if (!timeSynced()) return;
 
   bool active = scheduleActiveNow(now);
-  if (active) {
-    if (!maxRuntimeLatched) setValve(true, "schedule");
-  } else {
+  if (!active) {
+    if (scheduleSuppressed) {
+      scheduleSuppressed = false;
+      prefs.putBool("schedSuppress", false);
+    }
     if (maxRuntimeLatched) {
       maxRuntimeLatched = false;
       if (fault == "max_runtime") fault = "";
     }
     setValve(false, "schedule");
+    return;
   }
+
+  // A manual close during an active window wins until that window ends.
+  // Without this latch the next 10-second autoCheck would reopen the valve.
+  if (scheduleSuppressed) {
+    setValve(false, "schedule_off");
+    return;
+  }
+
+  if (!maxRuntimeLatched) setValve(true, "schedule");
 }
 
 /* ===================== Network ===================== */
@@ -580,6 +601,14 @@ bool executeCommand(const String &action, const String &commandId,
   if (open && valveMode == "auto") {
     error = "auto_mode";
     return false;
+  }
+
+  // Remember the close so autoCheck does not reopen the valve during the
+  // currently active schedule window.
+  if (!open && valveMode == "auto" && scheduleActiveNow(time(nullptr))) {
+    scheduleSuppressed = true;
+    prefs.putBool("schedSuppress", true);
+    Serial.println("Manual close suppresses the active schedule window");
   }
 
   if (open) {
@@ -1236,6 +1265,7 @@ void loadConfig() {
   configRevision = prefs.getUInt("revision", 0);
   maxOpenMinutes = prefs.getUShort("maxopen", DEFAULT_MAX_OPEN_MINUTES);
   if (maxOpenMinutes < 1 || maxOpenMinutes > 240) maxOpenMinutes = DEFAULT_MAX_OPEN_MINUTES;
+  scheduleSuppressed = prefs.getBool("schedSuppress", false);
 
   if (!schedulesJson.isEmpty()) parseSchedules(schedulesJson);
 
