@@ -119,15 +119,16 @@ Implemented and verified:
 - Config revision + `If-Match` conflict handling.
 - Command queue with idempotency, 20-minute TTL, latest-wins supersede.
 - Android login, dashboard, mode/schedule editing, command queue, Keystore token.
+- **Android runtime smoke test passed on a real phone** (Infinix X6815B, Android 12): login, mode/schedule edits, open/close with simulated device sync/ack, conflict dialog, offline cache across process restart, password change, logout/relogin. See `docs/ANDROID_RUNTIME_TEST.md`.
 - Firmware compiles in cellular and Wi-Fi bench modes; MQTT + HTTPS sync code.
 
-Still requires hardware/user verification:
+Still requires hardware verification:
 
 - Relay active level and valve wiring (`RELAY_ACTIVE_HIGH`).
 - A7672X CA upload/TLS handshake on the carrier network.
 - HiveMQ user/ACL for the firmware topics.
 - Power stability under cellular transmit bursts.
-- Android runtime smoke test on a real device or an emulator with enough RAM.
+- Real valve commands/status with the ESP32 (the app test simulated device sync/ack).
 - Real-time Android MQTT control (optional phase).
 
 See `docs/ARCHITECTURE_CENTRAL_CONFIG.md` §17–18,

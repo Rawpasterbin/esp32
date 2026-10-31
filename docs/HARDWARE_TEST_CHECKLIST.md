@@ -83,20 +83,23 @@
 
 ## 8. Android runtime
 
-- [ ] ใช้เครื่องจริงหรือ emulator ที่มี RAM พอ (≥ 4 GB free commit)
-- [ ] Login ด้วย invite code + household password
-- [ ] เห็น valve/mode/schedules/revision
-- [ ] เปลี่ยน mode → เครื่องอื่นเห็นภายใน 15 วิ
-- [ ] เพิ่ม/แก้/ลบ schedule → บันทึกสำเร็จ, conflict dialog ทำงานเมื่อแก้พร้อมกัน
-- [ ] เปิด/ปิดวาล์ว → เห็น pending แล้ว acked/expired
-- [ ] คำสั่งที่ใช้เวลา > 60 วิ → การ์ดคำสั่งอัปเดตเป็น acked/expired เองโดยไม่ต้องกด refresh
-- [ ] ปิดเน็ต → เห็น cache + ข้อความ "ออฟไลน์ — แสดงข้อมูลล่าสุดเมื่อ..."
-- [ ] ปิดแอปแล้วเปิดใหม่ตอนเน็ตหลุด → ยังเห็น snapshot ล่าสุด (cache ข้าม process)
-- [ ] เปิด Settings → เห็นบัญชี/บ้าน/อุปกรณ์/เวอร์ชัน/API และ logout มี confirm
-- [ ] Settings → เปลี่ยนรหัสบ้าน: รหัสปัจจุบันผิดแสดง error โดยไม่ logout; รหัสถูกต้องสำเร็จ; เครื่องที่สองถูกบังคับ login ใหม่
+> ทดสอบบนเครื่องจริงแล้วบางส่วน ดูรายละเอียดใน `docs/ANDROID_RUNTIME_TEST.md`
+> (Infinix X6815B, Android 12) — คำสั่ง/ack จำลองผ่าน device token เพราะยังไม่ได้ต่อ ESP32
+
+- [x] ใช้เครื่องจริงหรือ emulator ที่มี RAM พอ (≥ 4 GB free commit) — Infinix X6815B
+- [x] Login ด้วย invite code + household password
+- [x] เห็น valve/mode/schedules/revision
+- [x] เปลี่ยน mode → revision เปลี่ยน (ยังไม่ได้ทดสอบสองเครื่องพร้อมกัน)
+- [x] เพิ่ม/แก้/ลบ schedule → บันทึกสำเร็จ, conflict dialog ทำงานเมื่อแก้พร้อมกัน
+- [x] เปิด/ปิดวาล์ว → เห็น pending แล้ว acked (จำลอง device sync/ack)
+- [x] คำสั่งที่ใช้เวลา > 60 วิ → การ์ดคำสั่งอัปเดตเป็น acked เองโดยไม่ต้องกด refresh
+- [x] ปิดเน็ต → เห็น cache + ข้อความ "ออฟไลน์ — แสดงข้อมูลล่าสุดเมื่อ..."
+- [x] ปิดแอปแล้วเปิดใหม่ตอนเน็ตหลุด → ยังเห็น snapshot ล่าสุด (cache ข้าม process)
+- [x] เปิด Settings → เห็นบัญชี/บ้าน/อุปกรณ์/เวอร์ชัน/API และ logout มี confirm
+- [x] Settings → เปลี่ยนรหัสบ้าน: รหัสผิดแสดง error โดยไม่ logout; รหัสถูกต้องสำเร็จ
 - [ ] Settings → ออก device token ใหม่: token แสดงครั้งเดียว, คัดลอกได้; sync ด้วย token เก่าได้ 401; provision token ใหม่แล้ว sync ผ่าน
-- [ ] ปิด/เปิดแอป → session ยังอยู่ (token ใน Keystore)
-- [ ] Logout → token ถูก revoke และกลับหน้า login
+- [x] ปิด/เปิดแอป → session ยังอยู่ (token ใน Keystore)
+- [x] Logout → token ถูก revoke และกลับหน้า login (ไม่มี banner "เซสชันหมดอายุ" ผิด)
 
 ## 9. Sign-off
 

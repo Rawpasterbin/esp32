@@ -64,13 +64,18 @@ $payload = @{
   deviceName    = $DeviceName
 } | ConvertTo-Json
 
+# Windows PowerShell 5 encodes a string body as ISO-8859-1 even when the
+# Content-Type says UTF-8. Send explicit UTF-8 bytes so Thai names are stored
+# correctly (otherwise "วาล์วน้ำ" becomes mojibake in D1).
+$payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+
 try {
   $response = Invoke-RestMethod `
     -Method Post `
     -Uri "$ApiBase/v1/setup" `
     -Headers @{ 'X-Setup-Token' = $setupToken } `
     -ContentType 'application/json; charset=utf-8' `
-    -Body $payload
+    -Body $payloadBytes
 } catch {
   $detail = $_.ErrorDetails.Message
   throw "setup failed: $($_.Exception.Message) $detail"
