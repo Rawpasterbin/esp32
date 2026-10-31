@@ -299,7 +299,7 @@ findViewById<WebView>(R.id.webView).apply {
 `MqttManager.kt`:
 
 - `ssl://74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud:8883`
-- username `test`, password `test1234` (hardcode)
+- username/password แบบ hardcode (legacy — ลบออกจาก repo แล้ว; ต้อง rotate ที่ HiveMQ)
 - `cleanSession = true`, `automaticReconnect = true`
 - subscribe `myhouse/valve/status` และ `myhouse/+/status`
 - QoS 1
@@ -385,7 +385,7 @@ findViewById<WebView>(R.id.webView).apply {
 **ตำแหน่ง:**
 
 - `esp32_water_valve.ino` บรรทัด 10–16: WiFi SSID/password, MQTT user/pass
-- `wrangler.toml` บรรทัด 15–20: `MQTT_USER`, `MQTT_PASS`
+- `wrangler.toml`: เดิมมี `MQTT_USER`, `MQTT_PASS` แบบ hardcode — ลบออกแล้ว; ใช้ `wrangler secret put` และ rotate credential
 - `MqttManager.kt` บรรทัด 13–16: broker URL, user, pass
 
 **ผลกระทบ:** รั่ว WiFi, broker, และสามารถ publish คำสั่งเปิดวาล์วได้

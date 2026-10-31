@@ -102,5 +102,6 @@ Still requires hardware/user verification:
 - Android runtime smoke test on a real device or an emulator with enough RAM.
 - Real-time Android MQTT control (optional phase).
 
-See `docs/ARCHITECTURE_CENTRAL_CONFIG.md` §17–18 and
-`docs/HARDWARE_TEST_CHECKLIST.md`.
+See `docs/ARCHITECTURE_CENTRAL_CONFIG.md` §17–18,
+`docs/HARDWARE_TEST_CHECKLIST.md`, and **`docs/SECURITY.md`** (legacy MQTT
+credential must be rotated before hardware deployment).
