@@ -90,6 +90,7 @@
 - [ ] ปิดแอปแล้วเปิดใหม่ตอนเน็ตหลุด → ยังเห็น snapshot ล่าสุด (cache ข้าม process)
 - [ ] เปิด Settings → เห็นบัญชี/บ้าน/อุปกรณ์/เวอร์ชัน/API และ logout มี confirm
 - [ ] Settings → เปลี่ยนรหัสบ้าน: รหัสปัจจุบันผิดแสดง error โดยไม่ logout; รหัสถูกต้องสำเร็จ; เครื่องที่สองถูกบังคับ login ใหม่
+- [ ] Settings → ออก device token ใหม่: token แสดงครั้งเดียว, คัดลอกได้; sync ด้วย token เก่าได้ 401; provision token ใหม่แล้ว sync ผ่าน
 - [ ] ปิด/เปิดแอป → session ยังอยู่ (token ใน Keystore)
 - [ ] Logout → token ถูก revoke และกลับหน้า login
 
