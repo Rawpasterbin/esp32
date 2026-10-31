@@ -463,6 +463,8 @@ Header: `Authorization: Bearer <token>`
 
 **ETag:** `"rev-42"` → client ส่ง `If-None-Match`; ถ้าไม่เปลี่ยน → `304`
 
+**Online window:** `online = true` เมื่อ `lastSeenAt` อยู่ภายใน 20 นาที (sync ทุก 15 นาที + margin) — ห้ามใช้ 5 นาที เพราะอุปกรณ์ปกติจะดูเหมือนออฟไลน์ 10 จาก 15 นาที
+
 ### 6.4 Config (เขียน)
 
 #### `PUT /v1/households/:hid/config`

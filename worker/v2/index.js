@@ -20,6 +20,9 @@ const SESSION_DAYS = 30;
 const COMMAND_TTL_SECONDS = 20 * 60; // must exceed the device's 15-minute sync interval
 const AUTH_WINDOW_SECONDS = 60;
 const AUTH_MAX_FAILURES = 5;
+// The device only checks in over HTTPS every 15 minutes; a 5-minute window
+// would label a healthy device offline most of the time.
+const DEVICE_ONLINE_WINDOW_MS = 20 * 60 * 1000;
 
 const DEFAULT_SCHEDULES = [
   {
@@ -696,7 +699,7 @@ async function handleState(request, env, householdId) {
         firmwareVersion: device.firmware_version,
         lastSeenAt: device.last_seen_at,
         online: device.last_seen_at
-          ? Date.now() - new Date(device.last_seen_at).getTime() < 5 * 60 * 1000
+          ? Date.now() - new Date(device.last_seen_at).getTime() < DEVICE_ONLINE_WINDOW_MS
           : false,
       };
     }),
