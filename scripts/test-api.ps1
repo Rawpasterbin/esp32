@@ -201,6 +201,7 @@ Assert-Equal $state3.Status 200 'state after sync returns 200'
 Assert-True ([bool]$state3.Json.data.devices[0].lastSeenAt) 'state exposes device lastSeenAt'
 Assert-True ($state3.Json.data.devices[0].online -eq $true) 'freshly synced device is online'
 Assert-Equal $state3.Json.data.devices[0].valve $true 'state exposes valve status from device'
+Assert-True ([string]$state3.Headers['ETag'] -ne $newEtag) 'device status change invalidates the state ETag'
 
 # 15. Android write path: If-Match with a quoted ETag drives the revision.
 $ifMatchConfig = @{

@@ -461,7 +461,9 @@ Header: `Authorization: Bearer <token>`
 }
 ```
 
-**ETag:** `"rev-42"` → client ส่ง `If-None-Match`; ถ้าไม่เปลี่ยน → `304`
+**ETag:** opaque เช่น `"rev-42-dev-<device>:<lastSeenAt>-t<minute>"` → client ส่ง `If-None-Match`; ถ้าไม่เปลี่ยน → `304`
+- ETag ครอบทั้ง config revision, `lastSeenAt` ของอุปกรณ์ และ time bucket 1 นาที (เพื่อให้ `online` เปลี่ยนได้โดยไม่มี sync ใหม่)
+- `If-Match` สำหรับเขียน config ยังเป็น `"rev-N"` แยกจาก ETag นี้
 
 **Online window:** `online = true` เมื่อ `lastSeenAt` อยู่ภายใน 20 นาที (sync ทุก 15 นาที + margin) — ห้ามใช้ 5 นาที เพราะอุปกรณ์ปกติจะดูเหมือนออฟไลน์ 10 จาก 15 นาที
 
@@ -1134,7 +1136,7 @@ Worker v2 and D1 are deployed and verified end-to-end.
 | Schema | `migrations/0001_init.sql` + `0002_auth_attempts.sql` applied remotely |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
 | Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
-| API smoke test | 90/90 checks pass against production (auth, rate limit, state, config revision/If-Match, commands, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and `auth_attempts` deleted afterwards |
+| API smoke test | 91/91 checks pass against production (auth, rate limit, state, config revision/If-Match, devices-aware ETag, commands, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and `auth_attempts` deleted afterwards |
 
 Deploy/update commands:
 

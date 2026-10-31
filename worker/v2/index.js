@@ -678,7 +678,14 @@ async function handleState(request, env, householdId) {
     ? await env.DB.prepare('SELECT id, display_name FROM members WHERE id = ?').bind(config.updated_by).first()
     : null;
 
-  const etag = `"rev-${config.revision}"`;
+  // The ETag must cover device status too, otherwise a client that polls with
+  // If-None-Match would keep getting 304 and never see valve/online changes.
+  // The time bucket lets the computed `online` flag flip without a new sync.
+  const deviceStamp = (devices.results || [])
+    .map((device) => `${device.id}:${device.last_seen_at || ''}`)
+    .join('|');
+  const onlineBucket = Math.floor(Date.now() / 60000);
+  const etag = `"rev-${config.revision}-dev-${deviceStamp || 'none'}-t${onlineBucket}"`;
   const ifNoneMatch = request.headers.get('If-None-Match');
   if (ifNoneMatch && normalizeEtag(ifNoneMatch) === normalizeEtag(etag)) {
     return new Response(null, { status: 304, headers: { ETag: etag } });
