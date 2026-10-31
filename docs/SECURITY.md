@@ -62,6 +62,21 @@ git push --force --tags
 - ถ้า token รั่ว: ใช้ `POST /v1/households/:hid/devices/:did/rotate-token` ออก device token ใหม่
   (plaintext คืนครั้งเดียว) แล้ว provision firmware ผ่าน serial; session ที่สงสัยให้ logout/เปลี่ยนรหัสบ้าน
 
+## Multi-household isolation (v1)
+
+- Worker/D1 endpoints are scoped per household (state/config/commands/sessions) and
+  covered by cross-household tests.
+- **MQTT topics are still global**: firmware subscribes to
+  `myhouse/valve/control`, `myhouse/valve/mode`, `myhouse/valve/schedule`, and
+  publishes `myhouse/valve/status`. The HiveMQ user is shared.
+- Therefore **v1 supports one household/valve per HiveMQ deployment**. Do not
+  create a second production household that shares the same broker until
+  per-device topics (`myhouse/valve/<deviceId>/...`) or scoped credentials are
+  implemented.
+- The Android app does not publish MQTT. Manual commands go through the
+  household-scoped Worker queue, so they cannot cross households.
+- The API test suite creates two households on purpose; it never publishes MQTT.
+
 ## Current status
 
 - [x] ลบ MQTT credential ออกจาก `wrangler.toml` และเอกสารใน working tree

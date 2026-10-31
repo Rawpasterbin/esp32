@@ -178,6 +178,11 @@ same timezone as the valve.
 
 ## MQTT topics
 
+> **v1 isolation warning:** topics are global (`myhouse/valve/...`) and the
+> HiveMQ user is shared. Deploy only one household/valve per MQTT broker until
+> per-device topics or scoped credentials are implemented. See
+> `../docs/SECURITY.md`.
+
 Default prefix: `myhouse/valve/`.
 
 | Topic | Direction | Payload |

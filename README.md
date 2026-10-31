@@ -110,6 +110,7 @@ single-TLS-session limitation, safety behavior, and data budget.
 Implemented and verified:
 
 - Worker v2 + D1 deployed; 91/91 API checks pass against production (including cross-household isolation, device-token scope, logout revocation, password/device-token rotation, and auth rate limiting).
+- **v1 scope: one household/valve per MQTT deployment** — firmware topics are still global; see `docs/SECURITY.md`.
 - Config revision + `If-Match` conflict handling.
 - Command queue with idempotency, 20-minute TTL, latest-wins supersede.
 - Android login, dashboard, mode/schedule editing, command queue, Keystore token.
