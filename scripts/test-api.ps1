@@ -153,6 +153,24 @@ $put1 = Invoke-Api PUT "/v1/households/$householdId/config" -Headers $auth -Body
 Assert-Equal $put1.Status 200 'PUT config with revision 1 returns 200'
 Assert-Equal $put1.Json.data.revision 2 'revision increments to 2'
 
+# 7b. The firmware holds at most 8 schedules; the API must reject more.
+$nineSchedules = @(
+  1..9 | ForEach-Object {
+    @{
+      id      = $_
+      name    = "S$_"
+      start   = '06:00'
+      end     = '06:05'
+      days    = @($true, $true, $true, $true, $true, $false, $false)
+      enabled = $true
+    }
+  }
+)
+$tooMany = Invoke-Api PUT "/v1/households/$householdId/config" -Headers $auth -Body @{
+  mode = 'manual'; baseRevision = 2; schedules = $nineSchedules
+}
+Assert-Equal $tooMany.Status 422 'more than 8 schedules is rejected'
+
 # 8. Stale write is rejected with 409 and current state.
 $put2 = Invoke-Api PUT "/v1/households/$householdId/config" -Headers $auth -Body $config
 Assert-Equal $put2.Status 409 'stale PUT returns 409'

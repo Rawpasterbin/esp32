@@ -134,7 +134,7 @@ function validateConfig(body) {
   if (!body || typeof body !== 'object') return 'Body must be an object';
   if (body.mode !== 'auto' && body.mode !== 'manual') return 'mode must be "auto" or "manual"';
   if (!Array.isArray(body.schedules)) return 'schedules must be an array';
-  if (body.schedules.length > 50) return 'Too many schedules (max 50)';
+  if (body.schedules.length > 8) return 'Too many schedules (max 8)';
 
   const ids = new Set();
   for (const schedule of body.schedules) {

@@ -500,12 +500,11 @@ Conflict:
 ```
 
 **Validation:**
-
 - `mode` ต้องเป็น `auto`/`manual`
-- `schedules` array ≤ 50 รายการ
-- `start`/`end` ตรง `^([01]\d|2[0-3]):[0-5]\d$`
-- `days` length 7, boolean
-- `id` ไม่ซ้ำ, `name` ≤ 100 ตัวอักษร
+- `schedules` array ≤ **8** รายการ (ตรงกับ `MAX_SCHEDULES` ของ firmware; เกินกว่าจะถูกปฏิเสธ)
+- `id` เป็นจำนวนเต็มบวกและไม่ซ้ำ, `name` ≤ 100 ตัวอักษร
+- `start`/`end` ตรง `^([01]\d|2[0-3]):[0-5]\d$`; ถ้า `end <= start` ถือเป็นรอบข้ามคืน
+- `days` length 7, boolean (จันทร์=0)
 - `enabled` boolean
 
 ### 6.5 Commands
@@ -1136,7 +1135,7 @@ Worker v2 and D1 are deployed and verified end-to-end.
 | Schema | `migrations/0001_init.sql` + `0002_auth_attempts.sql` applied remotely |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
 | Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
-| API smoke test | 91/91 checks pass against production (auth, rate limit, state, config revision/If-Match, devices-aware ETag, commands, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and `auth_attempts` deleted afterwards |
+| API smoke test | 92/92 checks pass against production (auth, rate limit, state, config revision/If-Match, 8-schedule limit, devices-aware ETag, commands, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and `auth_attempts` deleted afterwards |
 
 Deploy/update commands:
 
