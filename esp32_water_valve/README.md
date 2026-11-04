@@ -125,6 +125,7 @@ set apn internet
 set apnuser <apn-user-if-required>
 set apnpass <apn-password-if-required>
 set url https://water-valve-api-v2.czqwertyyy.workers.dev
+set mqtthost <hivemq-host>
 set mqttuser <hivemq-user>
 set mqttpass <hivemq-password>
 set maxopen 30
@@ -147,7 +148,7 @@ Notes:
 - `status` prints secrets masked.
 - `sync` forces an immediate HTTPS sync.
 - The default Worker URL and MQTT host are compiled in but can be
-  overridden with `set url` and `set mqttuser`/`set mqttpass`.
+  overridden with `set url`, `set mqtthost`, `set mqttuser`/`set mqttpass`.
 - The default APN is `internet`; change it for your carrier if needed.
 
 ## Serial commands
@@ -161,6 +162,7 @@ Notes:
 | `set apnuser <u>` / `set apnpass <p>` | APN credentials |
 | `set ssid <name>` / `set pass <p>` | Wi-Fi bench only |
 | `set url <https://...>` | Worker base URL |
+| `set mqtthost <host>` | MQTT broker hostname (default HiveMQ Cloud) |
 | `set mqttuser <u>` / `set mqttpass <p>` | MQTT credentials |
 | `set maxopen <1..240>` | Local maximum open time |
 | `sync` | Force HTTPS config/command sync |
@@ -321,18 +323,19 @@ chain rooted at **GlobalSign Root CA (RSA)**:
 leaf → Google Trust Services WE1 → GTS Root R4 (cross-signed) →
 GlobalSign Root CA. The firmware's `ROOT_CA` is that RSA root.
 
-The source also keeps `ROOT_CA_ECC` (GlobalSign ECC Root CA - R4) for
-chains that still use the ECC root, but the WiFi build currently calls
-`setCACert(ROOT_CA)` only — trusting both in one call caused an X509
-parse error on this core, so only the verified RSA root is used.
+MQTT (HiveMQ Cloud) uses a different chain rooted at **ISRG Root X1**
+(Let's Encrypt); `ROOT_CA_HIVEMQ` holds that root. The WiFi build creates a
+persistent bundle (`ROOT_CA` + `ROOT_CA_HIVEMQ`) and calls `setCACert()` once.
+The bundle must stay alive for the client lifetime — a temporary `String`
+causes mbedTLS "X509 - Format not recognized".
 
-If Cloudflare changes the chain:
+If Cloudflare or HiveMQ changes the chain:
 
-1. Inspect the real chain from a client that reaches the Worker:
-   `openssl s_client -showcerts -connect <host>:443 -servername <host>`
+1. Inspect the real chain from a client that reaches the endpoint:
+   `openssl s_client -showcerts -connect <host>:443|8883 -servername <host>`
 2. Get the root CA PEM.
-3. Replace `ROOT_CA` in `esp32_water_valve.ino` (and re-enable the ECC
-   bundle only after verifying it parses on the ESP32 core).
+3. Replace `ROOT_CA` (HTTPS) or `ROOT_CA_HIVEMQ` (MQTT) in
+   `esp32_water_valve.ino`.
 4. Reflash. The firmware re-uploads the configured CA to the modem as
    `cfroot.pem` at boot.
 
