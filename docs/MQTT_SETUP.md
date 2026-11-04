@@ -48,3 +48,16 @@ reboot
 - เก็บ credential ใหม่ไว้ใน password manager
 - ลบไฟล์ `hivemq-device.txt` หลัง provision
 - ห้ามใช้ credential เก่า `test`/`test1234` ที่อยู่ใน git history
+- ปิด/ลบ user เก่า `test` ใน HiveMQ console ด้วย
+
+## 5. ผลทดสอบจริง (5 พ.ย. 2026)
+
+- `CONNACK 0` ทั้งจาก PC และ ESP32
+- `MQTT connected` หลัง reboot
+- subscribe `myhouse/valve/status` + publish `{"cmd":"getStatus"}`
+  → ได้ status กลับ (`valve=false`, `mode=manual`, `rssi≈-37`, `fw=2.1.0`)
+- publish `{"cmd":"close","commandId":"mqtt-close-...","expiresAt":"..."}`
+  → status มี `lastCommandId` ตรงกัน, valve ยังปิด
+- ยังไม่ทดสอบ `open` จนกว่าจะตรวจ relay polarity/วาล์วจริง
+- **ข้อควรระวัง:** ถ้าคัดลอก username มาแบบมี `< >` เช่น `<esp32>`
+  broker จะตอบ `CONNACK 5 / 0x87`; ต้องใช้ `esp32` เท่านั้น

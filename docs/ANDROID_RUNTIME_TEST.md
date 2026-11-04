@@ -74,5 +74,5 @@ Screenshots อยู่ใน `C:\Temp\opencode\android-*.png` (นอก repo)
 - WiFi `noonit_2.4G` เชื่อมได้; DNS/TLS ผ่านหลังแก้ CA เป็น GlobalSign Root CA (RSA)
 - `Sync HTTP 200`; บอร์ดได้ revision 16, 3 schedules, โหมด manual
 - ส่งคำสั่ง `close` ผ่าน API แล้วสั่ง `sync` ผ่าน serial → บอร์ด ack 200
-- MQTT ยังไม่เชื่อม เพราะรอ HiveMQ device user ใหม่ (credential เก่ารั่ว)
+- MQTT เชื่อม HiveMQ Cloud ด้วย user ใหม่ → `CONNACK 0`, `getStatus` และ MQTT `close` ผ่าน
 

@@ -42,15 +42,16 @@
 
 ## 4. MQTT + ACL
 
-- [ ] สร้าง HiveMQ Cloud user สำหรับอุปกรณ์ (ไม่ใช้ user admin)
-- [ ] จำกัดสิทธิ์ publish/subscribe เฉพาะ `myhouse/valve/control` และ `myhouse/valve/status`
-- [ ] `set mqttuser` / `set mqttpass`
-- [ ] ดู log: MQTT connect rc=0
-- [ ] rc=4 → username/password ผิด
-- [ ] rc=5 → ACL ไม่Allow topic
-- [ ] publish `{"cmd":"getStatus"}` ไป `myhouse/valve/control` → ได้ status กลับ
-- [ ] publish `{"cmd":"open","commandId":"test-1","expiresAt":"<future>"}` → relay เปิด, status มี `lastCommandId`
-- [ ] publish commandId เดิมซ้ำ → ต้องไม่ทำงานซ้ำ (idempotent)
+- [x] สร้าง HiveMQ Cloud user สำหรับอุปกรณ์ (user `esp32`, ไม่ใช่ admin)
+- [x] จำกัดสิทธิ์ publish/subscribe เฉพาะ `myhouse/valve/control`, `myhouse/valve/status`, `myhouse/valve/mode`, `myhouse/valve/schedule`
+- [x] `set mqttuser` / `set mqttpass` + `set mqtthost`
+- [x] ดู log: MQTT connect rc=0
+- [x] แก้เคส username มี `< >` ติดมา (`<esp32>`) ทำให้ได้ 0x87; ใช้ `esp32` แล้วผ่าน
+- [x] publish `{"cmd":"getStatus"}` ไป `myhouse/valve/control` → ได้ status กลับ
+- [x] publish `{"cmd":"close","commandId":"mqtt-close-...","expiresAt":"<future>"}` → status มี `lastCommandId`, valve ยังปิด
+- [ ] publish `{"cmd":"open",...}` → relay เปิดจริง (ยังไม่ทดสอบเพราะยังไม่ตรวจ relay polarity/วาล์ว)
+- [ ] publish commandId เดิมซ้ำ → ต้องไม่ทำงานซ้ำ (firmware idempotency; ยังไม่ทดสอบผ่าน MQTT จริง)
+- [ ] ปิด/ลบ user เก่า `test` ที่ credential รั่วใน git history
 
 ## 5. Worker sync + command queue
 
