@@ -18,12 +18,16 @@ ESP32 (A7672X) ──MQTT/TLS 8883──> HiveMQ Cloud
 
 ## Download Android APK
 
-- [water-valve-2.0-native-release.apk](./releases/water-valve-2.0-native-release.apk)
-- GitHub page (login required if the repo is private): <https://github.com/Rawpasterbin/esp32/blob/main/releases/water-valve-2.0-native-release.apk>
-- SHA-256: `D8F82D055F0A0AB1EE63334133BF2D8154D1C430730B888399AF419EC89AEEAC`
-- If the debug-signed `com.example.esp32` is already installed, uninstall it
-  first (different signing key), then install this APK. Login with the invite
-  code and current household password; server data is unchanged.
+- **Latest:** [water-valve-2.1-native-release.apk](./releases/water-valve-2.1-native-release.apk)
+  - SHA-256: `73A376BDF50D72572D35C6B2B5E25AAB86AECCAAFF74C68B6795AF7802B1CC5F`
+  - GitHub page (login required if the repo is private):
+    <https://github.com/Rawpasterbin/esp32/blob/main/releases/water-valve-2.1-native-release.apk>
+- **Previous:** [water-valve-2.0-native-release.apk](./releases/water-valve-2.0-native-release.apk)
+  - SHA-256: `D8F82D055F0A0AB1EE63334133BF2D8154D1C430730B888399AF419EC89AEEAC`
+- v2.1 uses the same signing key as v2.0, so it installs over v2.0 directly.
+  If the debug-signed `com.example.esp32` is installed, uninstall it first
+  (different signing key), then install. Login with the invite code and current
+  household password; server data is unchanged.
 
 ## Repository layout
 
