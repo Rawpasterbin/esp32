@@ -10,6 +10,7 @@
 | [`SECURITY.md`](./SECURITY.md) | การจัดการ secret, incident ของ MQTT credential เก่า และขั้นตอน rotate |
 | [`RUNBOOK.md`](./RUNBOOK.md) | คู่มือ production: deploy, backup/restore D1, rotate token/รหัสบ้าน, วินิจฉัยปัญหา, incident response |
 | [`ANDROID_RUNTIME_TEST.md`](./ANDROID_RUNTIME_TEST.md) | ผลทดสอบ native app บนเครื่องจริง: login, mode/schedule, command/ack, conflict, offline cache, password/logout |
+| [`MQTT_SETUP.md`](./MQTT_SETUP.md) | สร้าง HiveMQ device user + ACL + provision credential อย่างปลอดภัย |
 
 ## เอกสารในโปรเจกต์ Android
 
