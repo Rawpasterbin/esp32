@@ -19,7 +19,7 @@ ESP32 (A7672X) ──MQTT/TLS 8883──> HiveMQ Cloud
 ## Download Android APK
 
 - [water-valve-2.0-native-release.apk](./releases/water-valve-2.0-native-release.apk)
-- GitHub download: <https://github.com/Rawpasterbin/esp32/raw/main/releases/water-valve-2.0-native-release.apk>
+- GitHub page (login required if the repo is private): <https://github.com/Rawpasterbin/esp32/blob/main/releases/water-valve-2.0-native-release.apk>
 - SHA-256: `D8F82D055F0A0AB1EE63334133BF2D8154D1C430730B888399AF419EC89AEEAC`
 - If the debug-signed `com.example.esp32` is already installed, uninstall it
   first (different signing key), then install this APK. Login with the invite

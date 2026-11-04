@@ -13,6 +13,10 @@
 
 ### Install
 
+Download `water-valve-2.0-native-release.apk` from this folder (GitHub:
+open the file in the repo and click **Download**; if the repository is
+private, sign in first), or copy it from the build machine.
+
 ```powershell
 adb install -r water-valve-2.0-native-release.apk
 ```
