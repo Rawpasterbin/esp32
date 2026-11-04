@@ -99,7 +99,9 @@ const uint16_t COMMAND_TTL_GRACE_S = 5; // allow small clock skew
 /* Cloudflare's current workers.dev chain is rooted at
  * GlobalSign ECC Root CA - R4 (valid until 2038).
  * Replace this PEM if Cloudflare rotates the CA. */
-static const char ROOT_CA[] PROGMEM = R"EOF(
+#if !USE_CELLULAR
+/* GlobalSign ECC Root CA - R4 (kept for chains that use the ECC root). */
+static const char ROOT_CA_ECC[] PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIB3DCCAYOgAwIBAgINAgPlfvU/k/2lCSGypjAKBggqhkjOPQQDAjBQMSQwIgYDVQQLExtHbG9i
 YWxTaWduIEVDQyBSb290IENBIC0gUjQxEzARBgNVBAoTCkdsb2JhbFNpZ24xEzARBgNVBAMTCkds
@@ -110,6 +112,30 @@ ymOxuYb4ilfBV85C+nOh92VC/x7BALJucw7/xyHlGKSq2XE/qNS5zowdo0IwQDAOBgNVHQ8BAf8E
 BAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUVLB7rUW44kB/+wpu+74zyTyjhNUwCgYI
 KoZIzj0EAwIDRwAwRAIgIk90crlgr/HmnKAWBVBfw147bmF0774BxL4YSFlhgjICICadVGNA3jdg
 UM/I2O2dgq43mLyjj0xMqTQrbO/7lZsm
+-----END CERTIFICATE-----
+)EOF";
+#endif
+
+/* GlobalSign Root CA (RSA) — the chain Cloudflare currently serves for
+ * workers.dev. The ECC root above is kept for chains that still use it. */
+static const char ROOT_CA[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDdTCCAl2gAwIBAgILBAAAAAABFUtaw5QwDQYJKoZIhvcNAQEFBQAwVzELMAkGA1UEBhMCQkUx
+GTAXBgNVBAoTEEdsb2JhbFNpZ24gbnYtc2ExEDAOBgNVBAsTB1Jvb3QgQ0ExGzAZBgNVBAMTEkds
+b2JhbFNpZ24gUm9vdCBDQTAeFw05ODA5MDExMjAwMDBaFw0yODAxMjgxMjAwMDBaMFcxCzAJBgNV
+BAYTAkJFMRkwFwYDVQQKExBHbG9iYWxTaWduIG52LXNhMRAwDgYDVQQLEwdSb290IENBMRswGQYD
+VQQDExJHbG9iYWxTaWduIFJvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDa
+DuaZjc6j40+Kfvvxi4Mla+pIH/EqsLmVEQS98GPR4mdmzxzdzxtIK+6NiY6arymAZavpxy0Sy6sc
+THAHoT0KMM0VjU/43dSMUBUc71DuxC73/OlS8pF94G3VNTCOXkNz8kHp1Wrjsok6Vjk4bwY8iGlb
+Kk3Fp1S4bInMm/k8yuX9ifUSPJJ4ltbcdG6TRGHRjcdGsnUOhugZitVtbNV4FpWi6cgKOOvyJBNP
+c1STE4U6G7weNLWLBYy5d4ux2x8gkasJU26Qzns3dLlwR5EiUWMWea6xrkEmCMgZK9FGqkjWZCrX
+gzT/LCrBbBlDSgeF59N89iFo7+ryUp9/k5DPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBRge2YaRQ2XyolQL30EzTSo//z9SzANBgkqhkiG9w0BAQUF
+AAOCAQEA1nPnfE920I2/7LqivjTFKDK1fPxsnCwrvQmeU79rXqoRSLblCKOzyj1hTdNGCbM+w6Dj
+Y1Ub8rrvrTnhQ7k4o+YviiY776BQVvnGCv04zcQLcFGUl5gE38NflNUVyRRBnMRddWQVDf9VMOyG
+j/8N7yy5Y0b2qvzfvGn9LhJIZJrglfCm7ymPAbEVtQwdpf5pLGkkeB6zpxxxYu7KyJesF12KwvhH
+hm4qxFYxldBniYUr+WymXUadDKqC5JlR3XC321Y9YeRq4VzW9v493kHMB65jUr9TU/Qr6cf9tveC
+X4XSQRjbgbMEHMUfpIBvFSDJ3gyICh3WZlXi/EjJKSZp4A==
 -----END CERTIFICATE-----
 )EOF";
 
@@ -541,6 +567,8 @@ void configureTls() {
   }
   net.setCertificate("cfroot.pem");
 #else
+  // Cloudflare currently serves a GlobalSign RSA-rooted chain for workers.dev.
+  // The board clock must be valid before this is used for certificate checks.
   net.setCACert(ROOT_CA);
 #endif
   tlsReady = true;
@@ -678,6 +706,17 @@ bool httpPostJson(const String &url, const String &payload, const String &bearer
   if (host.isEmpty()) return false;
 
   net.setTimeout(20000);
+#if !USE_CELLULAR
+  IPAddress resolved;
+  if (WiFi.hostByName(host.c_str(), resolved)) {
+    Serial.print("DNS ");
+    Serial.print(host);
+    Serial.print(" -> ");
+    Serial.println(resolved);
+  } else {
+    Serial.println("DNS failed");
+  }
+#endif
 #if USE_CELLULAR
   if (!net.connect(host.c_str(), port, 20)) {
 #else
@@ -685,6 +724,14 @@ bool httpPostJson(const String &url, const String &payload, const String &bearer
 #endif
     Serial.print("HTTP: connect failed: ");
     Serial.println(host);
+#if !USE_CELLULAR
+    char tlsErr[128];
+    int tlsCode = net.lastError(tlsErr, sizeof(tlsErr));
+    Serial.print("TLS lastError ");
+    Serial.print(tlsCode);
+    Serial.print(": ");
+    Serial.println(tlsErr);
+#endif
     return false;
   }
 

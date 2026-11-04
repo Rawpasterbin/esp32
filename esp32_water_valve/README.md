@@ -316,15 +316,27 @@ after the first week and increase `SYNC_INTERVAL_MS` if needed.
 
 ## TLS certificate rotation
 
-The firmware trusts **GlobalSign ECC Root CA - R4**, the root currently
-used by `workers.dev` (leaf → Google Trust Services WE1 → GlobalSign ECC
-Root CA R4). If Cloudflare changes the chain:
+As of **5 Nov 2026**, `water-valve-api-v2.czqwertyyy.workers.dev` serves a
+chain rooted at **GlobalSign Root CA (RSA)**:
+leaf → Google Trust Services WE1 → GTS Root R4 (cross-signed) →
+GlobalSign Root CA. The firmware's `ROOT_CA` is that RSA root.
 
-1. Get the new root CA PEM.
-2. Replace the `ROOT_CA` string in `esp32_water_valve.ino`.
-3. Reflash. The firmware re-uploads it to the modem as `cfroot.pem` at boot.
+The source also keeps `ROOT_CA_ECC` (GlobalSign ECC Root CA - R4) for
+chains that still use the ECC root, but the WiFi build currently calls
+`setCACert(ROOT_CA)` only — trusting both in one call caused an X509
+parse error on this core, so only the verified RSA root is used.
 
-The modem certificate file is small (~700 bytes) and is uploaded once per
+If Cloudflare changes the chain:
+
+1. Inspect the real chain from a client that reaches the Worker:
+   `openssl s_client -showcerts -connect <host>:443 -servername <host>`
+2. Get the root CA PEM.
+3. Replace `ROOT_CA` in `esp32_water_valve.ino` (and re-enable the ECC
+   bundle only after verifying it parses on the ESP32 core).
+4. Reflash. The firmware re-uploads the configured CA to the modem as
+   `cfroot.pem` at boot.
+
+The modem certificate file is small (~1–2 KB) and is uploaded once per
 boot, so a factory-reset modem recovers automatically.
 
 ## Troubleshooting
