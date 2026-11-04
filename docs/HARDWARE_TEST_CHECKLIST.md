@@ -54,13 +54,15 @@
 
 ## 5. Worker sync + command queue
 
+> ทดสอบบนบอร์ดจริงแบบ WiFi bench (COM15, v2.1.0) แล้วบางส่วน; MQTT ยังรอ credential ใหม่
+
 - [x] สร้าง household/device ด้วย `scripts/create-household.ps1` เก็บ `deviceToken` (ไฟล์นอก repo) — `Home` สร้างแล้ว
-- [ ] `set token dev_...`, `set url https://water-valve-api-v2.czqwertyyy.workers.dev`
-- [ ] `sync` → D1 `devices.last_seen_at` อัปเดต
-- [ ] แก้ mode/schedule ในแอป → `sync` → firmware ได้ revision ใหม่
-- [ ] ส่ง command จากแอปตอน MQTT ปิด → รอ sync ถัดไป → firmware ทำงาน + ack
-- [ ] ส่ง command ใหม่ก่อนตัวเก่า ack → ตัวเก่าต้อง `expired/superseded`, ตัวใหม่ทำงาน
-- [ ] ตรวจ `GET /v1/households/{id}/commands` เห็นสถานะ acked/expired ถูกต้อง
+- [x] `set token dev_...`, `set url https://water-valve-api-v2.czqwertyyy.workers.dev` — provision ผ่าน serial แล้ว
+- [x] `sync` → D1 `devices.last_seen_at` อัปเดต — `Sync HTTP 200`, firmware 2.1.0, D1 online
+- [x] แก้ mode/schedule ในแอป → `sync` → firmware ได้ revision ใหม่ — บอร์ดได้ revision 16, 3 schedules
+- [x] ส่ง command ตอน MQTT ปิด → รอ sync → firmware ทำงาน + ack — ทดสอบ `close` ผ่าน API + serial `sync`; board ack 200
+- [x] ส่ง command ใหม่ก่อนตัวเก่า ack → ตัวเก่าต้อง `expired/superseded`, ตัวใหม่ทำงาน — API suite ครอบแล้ว
+- [x] ตรวจ `GET /v1/households/{id}/commands` เห็นสถานะ acked/expired ถูกต้อง — real close เป็น `acked`
 
 ## 6. Safety
 

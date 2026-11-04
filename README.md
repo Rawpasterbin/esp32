@@ -120,15 +120,17 @@ Implemented and verified:
 - Command queue with idempotency, 20-minute TTL, latest-wins supersede.
 - Android login, dashboard, mode/schedule editing, command queue, Keystore token.
 - **Android runtime smoke test passed on a real phone** (Infinix X6815B, Android 12): login, mode/schedule edits, open/close with simulated device sync/ack, conflict dialog, offline cache across process restart, password change, logout/relogin. See `docs/ANDROID_RUNTIME_TEST.md`.
+- **ESP32 board connected** (COM15, WiFi bench build v2.1.0): WiFi + HTTPS sync `HTTP 200`, revision 16, device online in D1; a real `close` command was delivered on sync and acked `200`.
 - Firmware compiles in cellular and Wi-Fi bench modes; MQTT + HTTPS sync code.
+- MQTT is not connected yet: waiting for a **new** HiveMQ device user (the old credential is leaked). See `docs/MQTT_SETUP.md`; template at `C:\Temp\opencode\hivemq-device.txt`.
 
 Still requires hardware verification:
 
 - Relay active level and valve wiring (`RELAY_ACTIVE_HIGH`).
-- A7672X CA upload/TLS handshake on the carrier network.
-- HiveMQ user/ACL for the firmware topics.
+- A7672X CA upload/TLS handshake on the carrier network (current board is WiFi bench, not cellular).
+- HiveMQ user/ACL + MQTT connect (`rc=0`) after the new credential is provisioned.
 - Power stability under cellular transmit bursts.
-- Real valve commands/status with the ESP32 (the app test simulated device sync/ack).
+- Real valve open/close with the relay/valve connected (only a no-op close was tested).
 - Real-time Android MQTT control (optional phase).
 
 See `docs/ARCHITECTURE_CENTRAL_CONFIG.md` §17–18,

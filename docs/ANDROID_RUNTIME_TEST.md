@@ -65,3 +65,14 @@
 
 Screenshots อยู่ใน `C:\Temp\opencode\android-*.png` (นอก repo) ตั้งแต่
 `android-01-login.png` ถึง `android-41-final-dashboard.png`
+
+## 5. Board follow-up (5 Nov 2026)
+
+หลังทดสอบ app ได้ต่อบอร์ด ESP32 จริง (COM15, WiFi bench build v2.1.0):
+
+- แฟลช firmware v2.1.0 (WiFi bench) สำเร็จ; NVS เดิมไม่ถูก erase
+- WiFi `noonit_2.4G` เชื่อมได้; DNS/TLS ผ่านหลังแก้ CA เป็น GlobalSign Root CA (RSA)
+- `Sync HTTP 200`; บอร์ดได้ revision 16, 3 schedules, โหมด manual
+- ส่งคำสั่ง `close` ผ่าน API แล้วสั่ง `sync` ผ่าน serial → บอร์ด ack 200
+- MQTT ยังไม่เชื่อม เพราะรอ HiveMQ device user ใหม่ (credential เก่ารั่ว)
+
