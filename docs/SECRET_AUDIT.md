@@ -23,6 +23,7 @@ private key, device token, session token, setup token, invite code,
 | WiFi SSID/password | ❌ อยู่ใน git history ของ firmware เก่า (`9e42949`) |
 | MQTT password ใหม่ | ❌ **ตรงกับรหัส WiFi บ้าน** และรหัส WiFi อยู่ใน history → ถือว่ารั่ว |
 | ข้อมูลระบุฮาร์ดแวร์/ตัวตนใน working tree | ✅ redact เป็น placeholder แล้ว (ดู §2.1) |
+| APK/build artifact เก่าใน Android repo | ✅ ลบออกจาก git และดิสก์แล้ว (ดู §2.2) |
 
 ## 2. สิ่งที่พบใน git history (ไม่แสดงค่า)
 
@@ -75,6 +76,18 @@ private key, device token, session token, setup token, invite code,
   ปรากฏใน commit เก่าบาง commit
 - ข้อมูลเหล่านี้ไม่ทำให้เข้าถึงระบบได้หากไม่มี credential/API token
   จึงไม่จำเป็นต้อง rotate; จะหายก็ต่อเมื่อ rewrite history (§4)
+
+## 2.2 Android repo: legacy APK/build artifacts
+
+- `app/release/app-release.apk` ที่ track อยู่ใน Android repo เป็น build เก่า
+  (WebView + MQTT) และมี MQTT credential เก่าฝังใน `classes.dex`
+- ลบออกจาก git index และดิสก์แล้ว พร้อม `app/build`, `build` และ
+  `app/release/baselineProfiles` (สร้างใหม่ได้)
+- โปรเจกต์สำเนาที่ `Documents\ESP32` ถูก scrub source (`MqttManager.kt`,
+  `MainActivity.kt`) และลบ build/release artifact ที่มี credential เก่าแล้ว
+- APK v2.0/v2.1 ใน `releases/` ตรวจแล้ว **ไม่มี** credential เก่า
+- Android repo ไม่มี remote; ถ้าจะ push ภายหลังควร rewrite history
+  หรือสร้าง repo ใหม่ก่อน เพื่อไม่ให้ APK เก่ากลับไปอยู่ใน history
 
 ## 3. ต้องทำทันที
 
