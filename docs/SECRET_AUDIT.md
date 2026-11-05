@@ -6,12 +6,16 @@ private key, device token, session token, setup token, invite code,
 อีเมล และ path ที่มีชื่อผู้ใช้ Windows
 
 > เอกสารนี้ **ไม่บันทึกค่ารหัสจริง** — ระบุเฉพาะประเภท/ตำแหน่งที่พบ
+>
+> ไฟล์ local ที่ถูก gitignore (เช่น `.dev.vars`, `wrangler.v2.toml`) และไฟล์
+> secret ที่เก็บไว้นอกรีโป **ยังมีค่าจริงตามปกติ** — การ scrub นี้เอาค่าเหล่านั้น
+> ออกจากไฟล์ที่ commit ขึ้น GitHub เท่านั้น
 
 ## 1. สรุป
 
 | รายการ | สถานะ |
 |---|---|
-| Working tree ปัจจุบัน | ✅ ไม่พบ secret จริง (เหลือแค่ test fixture `definitely-wrong` ใน `scripts/test-api.ps1` และชื่อตัวแปรใน code) |
+| Working tree (tracked files) | ✅ ไม่พบ secret จริง (เหลือแค่ test fixture `definitely-wrong` ใน `scripts/test-api.ps1` และชื่อตัวแปรใน code) |
 | Device token / household password / invite code | ✅ ไม่พบใน git history ของทั้ง 2 repo |
 | Setup token | ✅ ไม่พบใน git history |
 | GitHub PAT | ✅ ไม่พบใน repo (แต่ถูกส่งในแชต — ต้อง revoke) |
