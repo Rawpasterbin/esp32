@@ -6,10 +6,10 @@
 ## 1. สร้าง device user ที่ HiveMQ Cloud
 
 1. เข้า HiveMQ Cloud console ของ cluster:
-   `74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud`
+   `<YOUR_HIVEMQ_CLUSTER>.s1.eu.hivemq.cloud`
 2. ไปที่ **Access Management → Users**
 3. สร้าง user ใหม่สำหรับอุปกรณ์ เช่น `valve-home` พร้อมรหัสผ่านยาว ๆ
-   (ไม่ใช้ user admin และไม่ใช้ `test`)
+   (ไม่ใช้ user admin และไม่ใช้ user เก่า)
 4. ตั้ง permission/ACL ให้เฉพาะ topic ของบ้าน:
    - publish + subscribe: `myhouse/valve/control`
    - subscribe: `myhouse/valve/mode`, `myhouse/valve/schedule`
@@ -19,7 +19,7 @@
 
 ## 2. ใส่ credential ลงไฟล์ (ไม่ commit)
 
-แก้ไฟล์ `C:\Temp\opencode\hivemq-device.txt`:
+เก็บ credential ไว้ในไฟล์นอกรีโป (ห้าม commit) แล้วเขียนค่าลงไฟล์นั้น:
 
 ```
 <username>
@@ -47,8 +47,8 @@ reboot
 
 - เก็บ credential ใหม่ไว้ใน password manager
 - ลบไฟล์ `hivemq-device.txt` หลัง provision
-- ห้ามใช้ credential เก่า `test`/`test1234` ที่อยู่ใน git history
-- ปิด/ลบ user เก่า `test` ใน HiveMQ console ด้วย
+- ห้ามใช้ credential เก่าที่อยู่ใน git history (user เก่าและรหัสผ่านเดิม)
+- ปิด/ลบ user เก่าใน HiveMQ console ด้วย
 
 ## 5. ผลทดสอบจริง (5 พ.ย. 2026)
 
@@ -59,5 +59,5 @@ reboot
 - publish `{"cmd":"close","commandId":"mqtt-close-...","expiresAt":"..."}`
   → status มี `lastCommandId` ตรงกัน, valve ยังปิด
 - ยังไม่ทดสอบ `open` จนกว่าจะตรวจ relay polarity/วาล์วจริง
-- **ข้อควรระวัง:** ถ้าคัดลอก username มาแบบมี `< >` เช่น `<esp32>`
-  broker จะตอบ `CONNACK 5 / 0x87`; ต้องใช้ `esp32` เท่านั้น
+- **ข้อควรระวัง:** ถ้าคัดลอก username มาแบบมี `< >` เช่น `<your-user>`
+  broker จะตอบ `CONNACK 5 / 0x87`; ต้องใช้ username ที่ไม่มี `< >` เท่านั้น

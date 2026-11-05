@@ -152,8 +152,9 @@ set pass <wifi-password>
 - `set maxopen` รับ 1–240 นาที; ค่าเริ่มต้น 30
 - `status` แสดง secret แบบ mask
 - `sync` บังคับ HTTPS sync ทันที
-- Worker URL และ MQTT host มีค่าเริ่มต้นใน firmware แต่ override ได้ด้วย
-  `set url`, `set mqtthost`, `set mqttuser`/`set mqttpass`
+- Worker URL มีค่าเริ่มต้นใน firmware แต่ override ได้ด้วย `set url`
+- MQTT **ไม่มี** host/credential ฝังใน firmware; ต้อง provision ด้วย
+  `set mqtthost`, `set mqttuser`/`set mqttpass` ก่อนใช้ MQTT
 - APN ค่าเริ่มต้นคือ `internet`; เปลี่ยนตาม carrier ถ้าจำเป็น
 
 ## คำสั่ง serial
@@ -167,7 +168,7 @@ set pass <wifi-password>
 | `set apnuser <u>` / `set apnpass <p>` | credential ของ APN |
 | `set ssid <name>` / `set pass <p>` | Wi-Fi bench เท่านั้น |
 | `set url <https://...>` | base URL ของ Worker |
-| `set mqtthost <host>` | hostname ของ MQTT broker (ค่าเริ่มต้น HiveMQ Cloud) |
+| `set mqtthost <host>` | hostname ของ MQTT broker (ต้อง provision เอง) |
 | `set mqttuser <u>` / `set mqttpass <p>` | MQTT credential |
 | `set maxopen <1..240>` | เวลาเปิดสูงสุดฝั่งเครื่อง (นาที) |
 | `sync` | บังคับ HTTPS config/command sync |

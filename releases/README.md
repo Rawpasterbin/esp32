@@ -48,8 +48,8 @@ adb install water-valve-2.1-native-release.apk
 
 Release keystore และรหัสผ่านเก็บไว้ **นอก repository**:
 
-- `C:\Temp\opencode\water-valve-release.keystore`
-- `C:\Temp\opencode\water-valve-keystore-password.txt`
+- `<secure-path>\water-valve-release.keystore`
+- `<secure-path>\water-valve-keystore-password.txt`
 
 ควร backup ไว้ APK ในอนาคตต้องเซ็นด้วย key เดิมจึงจะอัปเดตทับได้
 ห้าม commit keystore หรือรหัสผ่าน

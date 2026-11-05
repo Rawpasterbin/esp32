@@ -2,7 +2,7 @@
 
 > ภาษา: **ไทย** | [English](README.en.md)
 
-ระบบ config กลาง + แอป Android native + ตัวควบคุม ESP32 แบบ cellular สำหรับวาล์วน้ำ 1 ตัว
+ระบบควบคุมวาล์วน้ำหนึ่งตัว ประกอบด้วย API กลางบน Cloudflare Workers, แอปพลิเคชัน Android แบบ native และเฟิร์มแวร์ ESP32 ที่เชื่อมต่อผ่านเครือข่ายมือถือ
 
 ```
 Android (Compose) ──HTTPS──> Cloudflare Worker v2 ──D1 (config, commands, audit)
@@ -12,161 +12,233 @@ Android (Compose) ──HTTPS──> Cloudflare Worker v2 ──D1 (config, comm
 ESP32 (A7672X) ──MQTT/TLS 8883──> HiveMQ Cloud
 ```
 
-- **Worker v2:** `https://water-valve-api-v2.czqwertyyy.workers.dev`
-- **D1:** `water-valve-v2` (APAC)
-- **Android:** native Compose ไม่มี WebView
-- **Firmware:** ESP32 + A7672X, MQTT real-time + HTTPS config sync
+## ภาพรวมระบบ
 
-## ดาวน์โหลด Android APK
+| องค์ประกอบ | รายละเอียด |
+|---|---|
+| Worker API | `https://water-valve-api-v2.czqwertyyy.workers.dev` |
+| ฐานข้อมูล | Cloudflare D1 `water-valve-v2` (ภูมิภาค APAC) |
+| แอปพลิเคชัน | Android native ด้วย Jetpack Compose ไม่ใช้ WebView |
+| เฟิร์มแวร์ | ESP32 + A7672X รองรับ MQTT แบบ real-time และ HTTPS config sync |
 
-- **GitHub Release:** <https://github.com/Rawpasterbin/esp32/releases/tag/v2.1-native>
-- **ดาวน์โหลดตรง (v2.1):**
-  <https://github.com/Rawpasterbin/esp32/releases/download/v2.1-native/water-valve-2.1-native-release.apk>
-- **ไฟล์ล่าสุดใน repo:** [water-valve-2.1-native-release.apk](./releases/water-valve-2.1-native-release.apk)
-  - SHA-256: `73A376BDF50D72572D35C6B2B5E25AAB86AECCAAFF74C68B6795AF7802B1CC5F`
-- **เวอร์ชันก่อนหน้า:** [water-valve-2.0-native-release.apk](./releases/water-valve-2.0-native-release.apk)
-  - SHA-256: `D8F82D055F0A0AB1EE63334133BF2D8154D1C430730B888399AF419EC89AEEAC`
-- v2.1 ใช้ signing key เดียวกับ v2.0 จึงติดตั้งทับ v2.0 ได้เลย
-  ถ้ามี debug-signed `com.example.esp32` อยู่ ต้องถอนก่อน (คนละ signing key)
-  แล้วติดตั้งใหม่; login ด้วย invite code และรหัสบ้านปัจจุบัน ข้อมูลฝั่ง server ไม่เปลี่ยน
+Worker เป็นเจ้าของสถานะทั้งหมด ได้แก่ ค่า mode และตารางเวลา (config), คิวคำสั่ง (commands) และบันทึกการใช้งาน (audit) แอปพลิเคชันอ่านและเขียนผ่าน HTTPS ส่วนอุปกรณ์ซิงก์ค่าที่ต้องการทุก 15 นาทีและยืนยันผลการทำงานกลับมา
 
-## โครงสร้าง repo
+## การติดตั้งแอปพลิเคชัน Android
+
+- GitHub Release: <https://github.com/Rawpasterbin/esp32/releases/tag/v2.1-native>
+- ดาวน์โหลดโดยตรง (v2.1): <https://github.com/Rawpasterbin/esp32/releases/download/v2.1-native/water-valve-2.1-native-release.apk>
+- ไฟล์ใน repository: [water-valve-2.1-native-release.apk](./releases/water-valve-2.1-native-release.apk)
+  SHA-256 `73A376BDF50D72572D35C6B2B5E25AAB86AECCAAFF74C68B6795AF7802B1CC5F`
+- เวอร์ชันก่อนหน้า: [water-valve-2.0-native-release.apk](./releases/water-valve-2.0-native-release.apk)
+  SHA-256 `D8F82D055F0A0AB1EE63334133BF2D8154D1C430730B888399AF419EC89AEEAC`
+
+เวอร์ชัน 2.1 ลงนามด้วยคีย์เดียวกับ 2.0 จึงติดตั้งทับได้โดยตรง กรณีที่เครื่องมีแพ็กเกจ `com.example.esp32` ที่ลงนามด้วย debug key อยู่ จำเป็นต้องถอนออกก่อนเนื่องจากใช้คีย์คนละชุด จากนั้นเข้าสู่ระบบด้วย invite code และรหัสบ้าน ข้อมูลฝั่งเซิร์ฟเวอร์ไม่เปลี่ยนแปลง
+
+## ลำดับการทำงานของคำสั่ง
+
+1. ผู้ใช้สั่งเปิดหรือปิดจากแอปพลิเคชัน แล้ว Worker บันทึกคำสั่งลงตาราง `commands` ด้วยสถานะ `pending` และกำหนดอายุ 20 นาที
+2. อุปกรณ์ซิงก์ตามรอบ 15 นาที รับคำสั่งไปดำเนินการ แล้วส่งผลกลับมาเป็นสถานะ `acked`
+3. หากคำสั่งหมดอายุก่อนถึงอุปกรณ์ ระบบจะเปลี่ยนสถานะเป็น `expired` พร้อมค่า `error='ttl'` และต้องสั่งใหม่
+4. หากมีคำสั่งใหม่ระหว่างที่คำสั่งเดิมยัง pending คำสั่งใหม่จะแทนที่คำสั่งเดิมด้วยค่า `error='superseded'` เพื่อป้องกันกรณีคำสั่งเปิดที่ค้างอยู่ถูกส่งภายหลังคำสั่งปิด
+
+ข้อจำกัดที่ต้องทำความเข้าใจ: แอปพลิเคชันไม่ได้เผยแพร่ MQTT ด้วยตนเอง คำสั่งจึงไม่ถึงอุปกรณ์ทันทีแม้อุปกรณ์จะเชื่อมต่อ MQTT อยู่ก็ตาม ช่องทาง MQTT ใช้สำหรับรับคำสั่งจากแหล่งอื่นและรองรับการควบคุมแบบ real-time ในระยะถัดไป การควบคุมให้มีผลทันทีจำเป็นต้องเพิ่มกลไก relay ผ่าน Worker หรือออก scoped credential จาก Worker ซึ่งยังไม่ได้ดำเนินการ
+
+## โครงสร้าง repository
 
 | Path | เนื้อหา |
 |---|---|
-| `worker/v2/index.js` | Worker API: auth, state, config revision, commands, device sync/ack |
-| `migrations/0001_init.sql` | D1 schema |
-| `migrations/0002_auth_attempts.sql` | ตาราง login/rate-limit |
-| `migrations/0003_rate_limits.sql` | ตาราง rate-limit คำสั่งต่อ member |
-| `wrangler.v2.toml` | config ของ Worker/D1 |
-| `scripts/test-api.ps1` | API smoke tests (local หรือ production) |
-| `esp32_water_valve/` | firmware + README เรื่อง wiring/provisioning |
-| `docs/` | วิเคราะห์, architecture, migration notes |
-| Android project | `C:\Users\ssde\AndroidStudioProjects\ESP32` (git repo แยก) |
+| `worker/v2/index.js` | Worker API: การยืนยันตัวตน, state, config revision, commands, device sync/ack |
+| `migrations/0001_init.sql` | schema หลัก ได้แก่ households, members, sessions, devices, configs, commands, audit_log |
+| `migrations/0002_auth_attempts.sql` | ตารางนับความพยายามเข้าสู่ระบบ |
+| `migrations/0003_rate_limits.sql` | ตารางจำกัดจำนวนคำสั่งต่อสมาชิก |
+| `wrangler.v2.toml.example` | เทมเพลตการตั้งค่า Worker และ D1; copy เป็น `wrangler.v2.toml` (local, git-ignored) แล้วใส่ `database_id` ของตัวเอง |
+| `scripts/test-api.ps1` | ชุดทดสอบ API สำหรับ local และ production |
+| `scripts/create-household.ps1` | สร้าง household และ device token พร้อมกำหนดสิทธิ์ไฟล์ |
+| `esp32_water_valve/` | เฟิร์มแวร์และเอกสารการต่อวงจร/การตั้งค่า |
+| `docs/` | เอกสารวิเคราะห์ สถาปัตยกรรม runbook และ security |
+| `releases/` | ไฟล์ APK ที่ลงนามแล้วและ checksum |
 
-## เริ่มต้นแบบ local (API)
+แอปพลิเคชัน Android อยู่ใน repository แยกต่างหาก (Jetpack Compose, ไม่มี WebView)
+
+## การพัฒนาและทดสอบในเครื่อง
+
+ก่อนเริ่มครั้งแรก ให้สร้างไฟล์ config จากเทมเพลตแล้วใส่ `database_id` ของ D1:
 
 ```powershell
-# Terminal 1
+Copy-Item wrangler.v2.toml.example wrangler.v2.toml
+# แก้ database_id ใน wrangler.v2.toml (ไฟล์นี้ถูก gitignore)
+```
+
+```powershell
+# เทอร์มินัลที่ 1
 npx wrangler dev --config wrangler.v2.toml --local --port 8787
 
-# Terminal 2 (ครั้งแรกครั้งเดียว)
+# เทอร์มินัลที่ 2 (เฉพาะครั้งแรก)
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0002_auth_attempts.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0003_rate_limits.sql
+
 powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```
 
-`.dev.vars` ต้องมี `SETUP_TOKEN=...` (git-ignored)
+ไฟล์ `.dev.vars` ต้องมีค่า `SETUP_TOKEN` และถูกยกเว้นจาก git แล้ว หากไม่ได้กำหนดตัวแปรสภาพแวดล้อม `SETUP_TOKEN` สคริปต์ทดสอบจะอ่านค่าจากไฟล์นี้
 
-## Deploy production
+## การติดตั้งขึ้น production
 
 ```powershell
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0002_auth_attempts.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0003_rate_limits.sql
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+
+$env:SETUP_TOKEN = '<setup-token>'
 $env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
 npx wrangler deploy --config wrangler.v2.toml
 ```
 
-รัน API suite ทั้งชุดกับ production:
+ไฟล์ migration ทุกไฟล์ใช้ `CREATE TABLE IF NOT EXISTS` จึงรันซ้ำได้โดยไม่เกิดข้อผิดพลาด แต่ตารางและ index ที่มีอยู่แล้วจะไม่ถูกปรับให้ตรงกับ schema ใหม่ หากต้องการเปลี่ยนโครงสร้างต้องเพิ่ม migration ไฟล์ใหม่
+
+การรันชุดทดสอบกับ production:
 
 ```powershell
 $env:API_BASE = 'https://water-valve-api-v2.czqwertyyy.workers.dev'
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN = '<setup-token>'
 powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```
 
-## สร้าง household จริง
+ชุดทดสอบนี้สร้าง household จริงสองรายการเพื่อทดสอบการแยกข้อมูลระหว่าง household เมื่อรันกับ production จะมีข้อมูลทดสอบคงค้างใน D1 และต้องลบด้วยตนเองตามขั้นตอนใน `docs/RUNBOOK.md` หัวข้อ 9
+
+## การสร้าง household
 
 ```powershell
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN = '<setup-token>'
 powershell -ExecutionPolicy Bypass -File scripts/create-household.ps1 `
   -HouseholdName 'บ้านของเรา'
 ```
 
-- จะ prompt ให้กรอกรหัสบ้าน (อย่างน้อย 8 ตัวอักษร); รหัสจะไม่ถูกเขียนลงดิสก์
-- บันทึก `deviceToken` (ใช้ได้ครั้งเดียว) และ IDs ลง
-  `C:\Temp\opencode\water-valve-household.json` พร้อม ACL แบบ user-only
-- พิมพ์คำสั่ง provisioning `set token ...` / `set url ...`
-- ใช้ `-Force` เฉพาะเมื่อต้องการแทนไฟล์ที่บันทึกไว้จริง ๆ
-- ถือว่าไฟล์ token เป็น secret; ห้าม commit
+- สคริปต์จะขอรหัสบ้านผ่าน prompt (อย่างน้อย 8 ตัวอักษร) และไม่เขียนรหัสลงดิสก์
+- ผลลัพธ์ประกอบด้วย `deviceToken` ที่แสดงเพียงครั้งเดียวและรหัสต่าง ๆ ระบบเขียนไฟล์ JSON ออกนอก repository โดยกำหนดตำแหน่งได้ด้วยพารามิเตอร์ `-OutFile` พร้อมจำกัดสิทธิ์ให้เฉพาะผู้ใช้ปัจจุบัน
+- สคริปต์พิมพ์คำสั่งสำหรับตั้งค่าอุปกรณ์ ได้แก่ `set token ...` และ `set url ...`
+- ใช้ `-Force` เฉพาะกรณีที่ต้องการเขียนทับไฟล์เดิม
+- ไฟล์ผลลัพธ์ถือเป็นความลับ ห้าม commit ขึ้น repository
 
-ก่อน provisioning firmware ให้อ่าน `docs/SECURITY.md`: ต้อง rotate HiveMQ credential เก่าก่อน
+ก่อนตั้งค่าเฟิร์มแวร์ ควรอ่าน `docs/SECURITY.md` เนื่องจาก credential ของ HiveMQ ชุดเดิมรั่วไหลและต้องหมุนใหม่ที่คอนโซลก่อน
 
-## Android
+## การ build แอปพลิเคชัน Android
 
 ```powershell
-cd C:\Users\ssde\AndroidStudioProjects\ESP32
+cd <android-project>
 .\gradlew.bat assembleDebug :app:testDebugUnitTest --no-daemon
 ```
 
-- debug/release ใช้ production API เป็นค่าเริ่มต้น
-- override เป็น local: `.\gradlew.bat assembleDebug -PapiBaseUrl=http://10.0.2.2:8787/`
-- session token เข้ารหัสด้วย Android Keystore (AES-GCM)
-- การสั่งวาล์ว manual จะ queue command ไว้ใน D1; อุปกรณ์จะได้รับในรอบ HTTPS sync
-  ถัดไป (ไม่เกิน ~15 นาที, TTL 20 นาที) — แอปยังไม่ publish MQTT โดยตรง
-  ดังนั้นคำสั่งจากแอปจะไม่ถึงอุปกรณ์ทันทีแม้บอร์ดต่อ MQTT อยู่
-- ไม่มี MQTT credential ใน APK; real-time control จากแอปต้องใช้ scoped credential
-  ที่ Worker ออกให้ หรือใช้ relay ผ่าน Worker
+- debug และ release ใช้ production API เป็นค่าเริ่มต้น
+- กำหนด API ปลายทางเป็นเครื่อง local สำหรับ emulator: `.\gradlew.bat assembleDebug -PapiBaseUrl=http://10.0.2.2:8787/`
+- session token เข้ารหัสด้วย Android Keystore (AES-GCM) ฝั่งเซิร์ฟเวอร์เก็บเฉพาะค่า hash
+- ภายใน APK ไม่มี MQTT credential
 
-## Firmware
+## เฟิร์มแวร์
 
 ```powershell
 arduino-cli compile --fqbn esp32:esp32:esp32 `
-  --libraries "$env:USERPROFILE\Documents\Arduino\libraries" esp32_water_valve
+  --libraries "<arduino-libraries>" esp32_water_valve
 ```
 
-ดู `esp32_water_valve/README.md` สำหรับ wiring, provisioning, MQTT topics,
-ข้อจำกัดเรื่อง TLS session เดียว, safety และ data budget
+รายละเอียดการต่อวงจร การตั้งค่าครั้งแรก MQTT topics ข้อจำกัดเรื่อง TLS session เดียวของ A7672X การใช้ข้อมูล และข้อกำหนดด้านความปลอดภัย อยู่ใน `esp32_water_valve/README.md`
 
-## สถานะ
+ค่าที่กำหนดผ่าน serial ได้แก่ `set maxopen <1..240>` (หน่วยนาที ค่าเริ่มต้น 30), `set mqttuser`, `set mqttpass`, `set token`, `set url` และสั่ง `reboot` เมื่อตั้งค่าเสร็จ
 
-ทำเสร็จและตรวจแล้ว:
+## API
 
-- Worker v2 + D1 deploy แล้ว; API checks ผ่าน **95/95** บน production
-  (cross-household isolation, device-token scope, logout revocation,
-  password/device-token rotation, login/command rate limiting)
-- สร้าง household `Home` + device จริงแล้ว (credentials อยู่นอก repo);
-  device sync ผ่าน production
-- **Android v2.1-native release APK** เซ็นแล้วและติดตั้งบนเครื่องจริง
-  (Infinix X6815B, Android 12); runtime smoke test ผ่าน: login, แก้ mode/schedule,
-  open/close (จำลอง device sync/ack), conflict dialog, offline cache ข้าม process,
-  เปลี่ยนรหัสบ้าน, logout/relogin
-- **v1 scope: 1 household/valve ต่อ MQTT deployment** — MQTT topics ยังเป็น global;
-  ดู `docs/SECURITY.md`
-- Config revision + `If-Match` conflict handling
-- Command queue มี idempotency, TTL 20 นาที, latest-wins supersede
-- Android มี login, dashboard, mode/schedule editor, command queue, Keystore token
-- **ESP32 board connected** (COM15, WiFi bench build v2.1.0): WiFi + HTTPS sync
-  `HTTP 200`, revision 17, device online ใน D1; คำสั่ง `close` จริงถูกส่งตอน sync
-  และ ack `200`
-- **MQTT connected** กับ HiveMQ Cloud ด้วย device user ใหม่: `CONNACK 0`;
-  `getStatus` และ MQTT `close` ผ่านการทดสอบ — user เก่า `test` ที่รั่วยังต้อง
-  disable/delete (ดู `docs/MQTT_SETUP.md`)
-- Firmware compile ผ่านทั้ง cellular และ WiFi bench; MQTT + HTTPS sync ทำงาน
+ทุก endpoint ภายใต้ `/v1/households/...` ต้องส่ง `Authorization: Bearer <session token>` และ session ต้องเป็นสมาชิกของ household นั้น มิฉะนั้นจะได้รับสถานะ 403
 
-ยังต้องตรวจบนฮาร์ดแวร์จริง:
+| Method | Path | การยืนยันตัวตน | หน้าที่ |
+|---|---|---|---|
+| GET | `/health` | – | ตรวจสอบเวอร์ชันและเวลาของเซิร์ฟเวอร์ |
+| POST | `/v1/setup` | `X-Setup-Token` | สร้าง household และ device token (คืนค่า plaintext ครั้งเดียว) |
+| POST | `/v1/auth/join` | – | เข้าร่วม household ด้วย invite code รหัสบ้าน และ displayName |
+| POST | `/v1/auth/login` | – | ขอ session token (อายุ 30 วัน) |
+| POST | `/v1/auth/logout` | session | ยกเลิก session ปัจจุบัน |
+| GET | `/v1/me` | session | ข้อมูลสมาชิกและ household |
+| GET | `/v1/households/:hid/state` | session | config ล่าสุดและสถานะอุปกรณ์ |
+| PUT | `/v1/households/:hid/config` | session | เขียน mode และ schedules ต้องส่ง `If-Match` หรือ `baseRevision` |
+| POST | `/v1/households/:hid/password` | session | เปลี่ยนรหัสบ้านและยกเลิก session อื่นทั้งหมด |
+| POST | `/v1/households/:hid/devices/:did/rotate-token` | session | ออก device token ใหม่ |
+| POST | `/v1/households/:hid/commands` | session | เพิ่มคำสั่งเปิดหรือปิด (รองรับ `idempotencyKey`) |
+| GET | `/v1/households/:hid/commands` | session | ดูคำสั่งล่าสุดและปรับสถานะที่หมดอายุ |
+| POST | `/v1/devices/sync` | device token | ซิงก์ config รับคำสั่ง และส่งสถานะ |
+| POST | `/v1/devices/status` | device token | อัปเดตสถานะอย่างเดียว |
+| GET | `/v1/devices/desired` | device token | ดึง config ที่ต้องการ |
+| POST | `/v1/devices/commands/:id/ack` | device token | ยืนยันผลการดำเนินการของคำสั่ง |
 
-- Relay active level และ wiring ของวาล์ว (`RELAY_ACTIVE_HIGH`)
-- A7672X CA upload/TLS handshake บนเครือข่าย carrier (ตอนนี้เป็น WiFi bench)
-- Disable/delete HiveMQ user เก่า `test` ที่ credential รั่ว
-- Power stability ตอน cellular transmit burst
-- เปิด/ปิดวาล์วจริง (ทดสอบแล้วเฉพาะ close แบบ no-op)
-- Real-time Android MQTT control (optional phase)
+รหัสข้อผิดพลาดที่ Worker ส่งกลับ: `BAD_REQUEST` 400, `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `CONFLICT` 409 (revision ไม่ตรง), `VALIDATION` 422, `PRECONDITION_REQUIRED` 428 (ไม่ได้ส่ง `If-Match`), `RATE_LIMITED` 429, `INTERNAL` 500
 
-ดู `docs/ARCHITECTURE_CENTRAL_CONFIG.md` §17–18,
-`docs/HARDWARE_TEST_CHECKLIST.md`, **`docs/SECURITY.md`**
-(ต้อง rotate MQTT credential เก่าก่อน deploy ฮาร์ดแวร์) และ
-`docs/RUNBOOK.md` สำหรับขั้นตอน deploy/backup/rotation
+## ค่าคงที่และขีดจำกัดของระบบ
 
-## หมายเหตุเรื่องคำศัพท์
+| รายการ | ค่า | ตำแหน่งที่กำหนด |
+|---|---|---|
+| รอบซิงก์ของอุปกรณ์ | 15 นาที (ลองใหม่หลัง 60 วินาทีเมื่อล้มเหลว) | เฟิร์มแวร์ `SYNC_INTERVAL_MS` |
+| เกณฑ์ถือว่าอุปกรณ์ออนไลน์ | พบครั้งล่าสุดภายใน 20 นาที | Worker `DEVICE_ONLINE_WINDOW_MS` |
+| อายุของคำสั่ง | 20 นาที | Worker `COMMAND_TTL_SECONDS` |
+| จำนวน schedule สูงสุด | 8 รอบ | Worker `validateConfig` |
+| อายุ session | 30 วัน | Worker `SESSION_DAYS` |
+| การเข้าสู่ระบบผิด | 5 ครั้งต่อนาทีต่อ IP | ตาราง `auth_attempts` |
+| การสั่งงาน | 10 คำสั่งต่อนาทีต่อสมาชิก | ตาราง `rate_limits` |
+| ระยะเวลาเปิดวาล์วสูงสุด | 30 นาที (ปรับได้ 1–240) | เฟิร์มแวร์ `maxopen` |
+| ปริมาณข้อมูลที่คาดไว้ | ประมาณ 10–30 MB ต่อเดือน | – |
 
-คำเทคนิคต่อไปนี้คงเป็นภาษาอังกฤษ เพราะแปลไทยแล้วอ่านเพี้ยนหรือเป็นชื่อเฉพาะ:
-Worker, D1, API, MQTT, TLS, HTTPS, ESP32, A7672X, HiveMQ, Cloudflare,
-Android, Compose, WebView, APK, GitHub, token, firmware, provisioning,
-sync, deploy, build, release, commit, repo, branch, tag, revision, ETag,
-If-Match, JSON, DTO, Retrofit, DataStore, Keystore, NVS, UART, GPIO, relay,
-watchdog, maxopen, schedule, mode, manual, auto, command queue, TTL,
-idempotency, ACL, CA, NTP, RSSI
+## การวินิจฉัยปัญหา
+
+| อาการ | สาเหตุที่เป็นไปได้ | แนวทางแก้ไข |
+|---|---|---|
+| อุปกรณ์แสดงสถานะ offline | การซิงก์ล้มเหลว หรือเวลาที่พบครั้งล่าสุดเกิน 20 นาที | ตรวจสอบบันทึกของเฟิร์มแวร์ที่บรรทัด `Sync HTTP ...` |
+| `Sync HTTP 401` | device token ไม่ถูกต้องหรือถูกหมุนใหม่ | หมุน token ใหม่แล้วตั้งค่าด้วย `set token` ผ่าน serial |
+| `Sync HTTP 0` | ปัญหา DNS, TLS, CA หรือ APN | ตรวจสอบ `AT+CCERTLIST` และค่า APN แล้วลองใหม่ |
+| คำสั่งค้างสถานะ pending | อุปกรณ์ออฟไลน์นานกว่าอายุคำสั่ง | สั่งใหม่เมื่ออุปกรณ์กลับมาออนไลน์ |
+| ได้รับ 429 ขณะเข้าสู่ระบบ | กรอกรหัสผิด 5 ครั้งภายใน 1 นาที | รอ 1 นาที หรือล้างตาราง `auth_attempts` ตาม `docs/RUNBOOK.md` หัวข้อ 9 |
+| ได้รับ 429 ขณะสั่งงาน | เกิน 10 คำสั่งต่อนาทีต่อสมาชิก | รอ 1 นาทีแล้วลองใหม่ |
+| ได้รับ 409 ขณะบันทึก config | มีผู้ใช้อื่นแก้ไขก่อน (revision เปลี่ยน) | โหลดข้อมูลใหม่แล้วบันทึกอีกครั้ง |
+| ได้รับ 428 ขณะบันทึก config | ไม่ได้ส่ง `If-Match` | ส่ง revision ที่อ่านมาล่าสุด |
+| Worker ส่ง 500 | D1 binding ไม่ถูกต้อง migration ยังไม่ครบ หรือ body ผิดรูปแบบ | ใช้ `npx wrangler tail water-valve-api-v2 --config wrangler.v2.toml` |
+| วาล์วปิดเองโดยไม่คาดคิด | ถึงขีด `maxopen` ตารางเวลาสิ้นสุด หรือมีคำสั่ง `close` | ตรวจสอบบันทึกและตาราง `audit_log` |
+
+## ข้อกำหนดก่อนใช้งานกับวาล์วจริง
+
+- รองรับหนึ่ง household ต่อหนึ่ง MQTT deployment เนื่องจาก MQTT topic ยังเป็นระดับ global (`myhouse/valve/...`) และใช้ผู้ใช้ HiveMQ ร่วมกัน หากสร้าง household ที่สองบน broker เดียวกัน อุปกรณ์อาจรับคำสั่งข้าม household จำเป็นต้องทำ per-device topic ก่อน (ดู `docs/SECURITY.md`)
+- ตรวจสอบระดับสัญญาณ active ของ relay ให้ตรงกับบอร์ดจริง (`RELAY_ACTIVE_HIGH`) มิฉะนั้นคำสั่งเปิดอาจกลายเป็นการปิด
+- วาล์วถูกบังคับให้ปิดเมื่อเริ่มทำงาน และปิดอัตโนมัติเมื่อเปิดนานเกิน `maxopen` ซึ่งเป็นพฤติกรรมที่ออกแบบไว้
+- คำสั่งที่มีอายุจะถูกปฏิเสธหากนาฬิกาของอุปกรณ์ยังไม่ซิงก์ (NTP) ควรตรวจสอบเวลาของอุปกรณ์ก่อนทดสอบ
+- ต้องหมุน credential ของ HiveMQ ชุดเดิมก่อนติดตั้งใช้งานจริง
+
+## สถานะการพัฒนา
+
+รายการที่ดำเนินการและตรวจสอบแล้ว:
+
+| ส่วน | สถานะ |
+|---|---|
+| Worker v2 และ D1 | ติดตั้งบน production แล้ว ชุดทดสอบ API ผ่าน 95/95 รวมถึงการแยกข้อมูลระหว่าง household, ขอบเขตของ device token, การยกเลิก session เมื่อ logout, การหมุนรหัสผ่านและ token และการจำกัดอัตราการเรียกใช้ |
+| Household และอุปกรณ์ | สร้างบน production แล้ว ข้อมูลรับรองเก็บไว้นอก repository และการซิงก์ของอุปกรณ์ทำงานได้ |
+| แอปพลิเคชัน Android v2.1 | ลงนามและติดตั้งบนอุปกรณ์จริง (Android 12) ทดสอบการเข้าสู่ระบบ การแก้ไข mode และตารางเวลา การเปิด/ปิดด้วยการจำลอง sync/ack หน้าต่างแจ้งข้อขัดแย้ง แคชแบบออฟไลน์ข้าม process การเปลี่ยนรหัสบ้าน และ logout/relogin |
+| เฟิร์มแวร์ | คอมไพล์ผ่านทั้งโหมด cellular และ Wi-Fi และการทำงานของ MQTT ร่วมกับ HTTPS sync ผ่านการทดสอบ |
+| บอร์ดจริง | ซิงก์ผ่าน HTTPS ด้วยสถานะ `HTTP 200` อุปกรณ์แสดงออนไลน์ใน D1 และคำสั่ง `close` ถูกส่งในรอบซิงก์พร้อม ack สำเร็จ |
+| MQTT | เชื่อมต่อ HiveMQ Cloud ด้วยผู้ใช้อุปกรณ์ชุดใหม่ได้ `CONNACK 0` และทดสอบ `getStatus` กับคำสั่ง `close` ผ่าน |
+
+รายการที่ยังไม่ได้ดำเนินการ:
+
+| รายการ | หมายเหตุ |
+|---|---|
+| ระดับ active ของ relay และการต่อวงจรวาล์ว | ยังไม่ได้เชื่อมต่อวาล์วจริง |
+| การอัปโหลด CA และ TLS handshake ของ A7672X บนเครือข่ายผู้ให้บริการ | ปัจจุบันทดสอบผ่าน Wi-Fi |
+| ปิดหรือลบผู้ใช้ HiveMQ ชุดเดิมที่รั่วไหล | ต้องดำเนินการที่คอนโซล |
+| เสถียรภาพของไฟเลี้ยงระหว่างการส่งข้อมูล cellular | ยังไม่ได้วัดค่า |
+| การเปิดและปิดวาล์วจริง | ทดสอบเฉพาะคำสั่งปิดที่ไม่เกิดผลกับอุปกรณ์ |
+| การควบคุมแบบ real-time จากแอปพลิเคชัน | อยู่ในระยะถัดไปและต้องมี scoped credential |
+
+## เอกสารอ้างอิง
+
+- `docs/ARCHITECTURE_CENTRAL_CONFIG.md` หัวข้อ 17–18 — สถาปัตยกรรมและข้อตัดสินใจ
+- `docs/HARDWARE_TEST_CHECKLIST.md` — ขั้นตอนทดสอบบนฮาร์ดแวร์
+- `docs/SECURITY.md` — การจัดการความลับและการหมุน credential
+- `docs/RUNBOOK.md` — การติดตั้ง สำรองข้อมูล หมุน token และรับมือเหตุการณ์
+
+## หมายเหตุด้านภาษา
+
+เอกสารนี้คงคำศัพท์เทคนิคบางคำไว้ในรูปภาษาอังกฤษ เนื่องจากเป็นชื่อเฉพาะหรือแปลแล้วทำให้ความหมายคลาดเคลื่อน ได้แก่ Worker, D1, API, MQTT, TLS, ESP32, A7672X, HiveMQ, Cloudflare, Compose, APK, token, firmware, provisioning, sync, deploy, build, release, commit, repository, revision, ETag, If-Match, JSON, Keystore, NVS, GPIO, relay, watchdog, maxopen, schedule, TTL, idempotency, ACL, CA และ NTP

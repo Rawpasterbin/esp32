@@ -50,8 +50,8 @@ Worker/D1.
 
 The release keystore and its password are stored **outside the repository**:
 
-- `C:\Temp\opencode\water-valve-release.keystore`
-- `C:\Temp\opencode\water-valve-keystore-password.txt`
+- `<secure-path>\water-valve-release.keystore`
+- `<secure-path>\water-valve-keystore-password.txt`
 
 Keep a backup. Future APKs must be signed with the same key to update this
 installation. Never commit the keystore or password.

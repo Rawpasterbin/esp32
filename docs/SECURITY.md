@@ -11,7 +11,7 @@
 ### สิ่งที่ต้องทำ (เรียงลำดับ)
 
 1. เข้า HiveMQ Cloud console → Access Management
-2. ลบ/disable user เก่า (`test`) หรือเปลี่ยน password ทันที
+2. ลบ/disable user เก่า หรือเปลี่ยน password ทันที
 3. สร้าง user ใหม่สำหรับอุปกรณ์โดยเฉพาะ (ไม่ใช้ user admin) และจำกัด ACL:
    - publish/subscribe `myhouse/valve/control`
    - publish `myhouse/valve/status`
@@ -38,7 +38,8 @@ force-push ซึ่งจะเปลี่ยน commit hash ทั้ง repo
 ```powershell
 # ติดตั้ง git-filter-repo ก่อน แล้วรันใน repo ที่ backup ไว้
 @'
-test1234==>REDACTED
+# ใส่ secret เก่าที่ต้องการ redact ใน replacements.txt เช่น
+# <old-secret>==>REDACTED
 '@ | Set-Content replacements.txt
 git filter-repo --replace-text replacements.txt
 git push --force --all
@@ -62,6 +63,24 @@ git push --force --tags
 - ถ้า token รั่ว: ใช้ `POST /v1/households/:hid/devices/:did/rotate-token` ออก device token ใหม่
   (plaintext คืนครั้งเดียว) แล้ว provision firmware ผ่าน serial; session ที่สงสัยให้ logout/เปลี่ยนรหัสบ้าน
 
+## Incident 2: WiFi/MQTT password reuse (5 Nov 2026)
+
+การตรวจ git history พบว่า firmware เก่า (`9e42949`) มี **WiFi SSID/password
+hardcode** อยู่ในไฟล์ `esp32_water_valve.ino` และรหัส MQTT ของ device user
+ที่ตั้งใหม่ **ตรงกับรหัส WiFi บ้าน** ค่านั้นจึงถือว่ารั่วเพราะอยู่ใน public
+history แล้ว
+
+- Working tree ปัจจุบันไม่มีค่าเหล่านี้แล้ว (redact แล้ว)
+- แต่ git history ยังมี; การลบออกจาก working tree อย่างเดียวไม่พอ
+- **ต้องเปลี่ยนรหัส WiFi ของบ้านและรหัส MQTT ทันที** แล้วอัปเดตบอร์ด:
+  ```
+  set pass <wifi-password-ใหม่>
+  set mqttpass <mqtt-password-ใหม่>
+  reboot
+  ```
+- ลบ/disable HiveMQ user เก่า และ revoke GitHub PAT ที่เคยส่งในแชต
+- รายละเอียดและขั้นตอน history rewrite: `docs/SECRET_AUDIT.md`
+
 ## Multi-household isolation (v1)
 
 - Worker/D1 endpoints are scoped per household (state/config/commands/sessions) and
@@ -82,6 +101,10 @@ git push --force --tags
 - [x] ลบ MQTT credential ออกจาก `wrangler.toml` และเอกสารใน working tree
 - [x] เพิ่ม endpoint เปลี่ยนรหัสบ้าน + rotate device token (revoke session อื่นอัตโนมัติ)
 - [x] Rate limit login/join/password change (5 failed attempts/min/IP; ตาราง `auth_attempts`)
-- [ ] Rotate HiveMQ credential (ต้องทำที่ console — ยังไม่ได้ทำ)
-- [ ] อัปเดต firmware ที่ติดตั้งจริงด้วย credential ใหม่
+- [x] ตรวจ secret ทั้ง working tree และ history (ดู `docs/SECRET_AUDIT.md`)
+- [ ] เปลี่ยนรหัส WiFi บ้าน (รหัสเดิมอยู่ใน history ของ firmware เก่า)
+- [ ] เปลี่ยนรหัส MQTT ของ device user (รหัสใหม่เดิมตรงกับ WiFi)
+- [ ] อัปเดตบอร์ดด้วย `set pass` / `set mqttpass` ใหม่
+- [ ] ลบ/disable HiveMQ user เก่า
+- [ ] Revoke GitHub PAT ที่เคยส่งในแชต
 - [ ] (optional) ล้าง git history และ force-push

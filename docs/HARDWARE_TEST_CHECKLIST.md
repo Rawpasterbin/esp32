@@ -42,20 +42,20 @@
 
 ## 4. MQTT + ACL
 
-- [x] สร้าง HiveMQ Cloud user สำหรับอุปกรณ์ (user `esp32`, ไม่ใช่ admin)
+- [x] สร้าง HiveMQ Cloud user สำหรับอุปกรณ์ (ไม่ใช่ admin)
 - [x] จำกัดสิทธิ์ publish/subscribe เฉพาะ `myhouse/valve/control`, `myhouse/valve/status`, `myhouse/valve/mode`, `myhouse/valve/schedule`
 - [x] `set mqttuser` / `set mqttpass` + `set mqtthost`
 - [x] ดู log: MQTT connect rc=0
-- [x] แก้เคส username มี `< >` ติดมา (`<esp32>`) ทำให้ได้ 0x87; ใช้ `esp32` แล้วผ่าน
+- [x] แก้เคส username มี `< >` ติดมา ทำให้ได้ 0x87; ใช้ username ที่ไม่มี `< >` แล้วผ่าน
 - [x] publish `{"cmd":"getStatus"}` ไป `myhouse/valve/control` → ได้ status กลับ
 - [x] publish `{"cmd":"close","commandId":"mqtt-close-...","expiresAt":"<future>"}` → status มี `lastCommandId`, valve ยังปิด
 - [ ] publish `{"cmd":"open",...}` → relay เปิดจริง (ยังไม่ทดสอบเพราะยังไม่ตรวจ relay polarity/วาล์ว)
 - [ ] publish commandId เดิมซ้ำ → ต้องไม่ทำงานซ้ำ (firmware idempotency; ยังไม่ทดสอบผ่าน MQTT จริง)
-- [ ] ปิด/ลบ user เก่า `test` ที่ credential รั่วใน git history
+- [ ] ปิด/ลบ user เก่า ที่ credential รั่วใน git history
 
 ## 5. Worker sync + command queue
 
-> ทดสอบบนบอร์ดจริงแบบ WiFi bench (COM15, v2.1.0) แล้วบางส่วน; MQTT ยังรอ credential ใหม่
+> ทดสอบบนบอร์ดจริงแบบ WiFi bench (พอร์ต serial, v2.1.0) แล้วบางส่วน; MQTT ยังรอ credential ใหม่
 
 - [x] สร้าง household/device ด้วย `scripts/create-household.ps1` เก็บ `deviceToken` (ไฟล์นอก repo) — `Home` สร้างแล้ว
 - [x] `set token dev_...`, `set url https://water-valve-api-v2.czqwertyyy.workers.dev` — provision ผ่าน serial แล้ว
@@ -87,9 +87,9 @@
 ## 8. Android runtime
 
 > ทดสอบบนเครื่องจริงแล้วบางส่วน ดูรายละเอียดใน `docs/ANDROID_RUNTIME_TEST.md`
-> (Infinix X6815B, Android 12) — คำสั่ง/ack จำลองผ่าน device token เพราะยังไม่ได้ต่อ ESP32
+> (Android phone, Android 12) — คำสั่ง/ack จำลองผ่าน device token เพราะยังไม่ได้ต่อ ESP32
 
-- [x] ใช้เครื่องจริงหรือ emulator ที่มี RAM พอ (≥ 4 GB free commit) — Infinix X6815B
+- [x] ใช้เครื่องจริงหรือ emulator ที่มี RAM พอ (≥ 4 GB free commit) — Android phone
 - [x] Login ด้วย invite code + household password
 - [x] เห็น valve/mode/schedules/revision
 - [x] เปลี่ยน mode → revision เปลี่ยน (ยังไม่ได้ทดสอบสองเครื่องพร้อมกัน)

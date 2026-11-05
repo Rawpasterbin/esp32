@@ -152,8 +152,9 @@ Notes:
 - `set maxopen` accepts 1–240 minutes; the default is 30.
 - `status` prints secrets masked.
 - `sync` forces an immediate HTTPS sync.
-- The default Worker URL and MQTT host are compiled in but can be
-  overridden with `set url`, `set mqtthost`, `set mqttuser`/`set mqttpass`.
+- The default Worker URL is compiled in and can be overridden with `set url`.
+- The MQTT host and credentials are **not** compiled in; provision them with
+  `set mqtthost`, `set mqttuser`/`set mqttpass` before using MQTT.
 - The default APN is `internet`; change it for your carrier if needed.
 
 ## Serial commands
@@ -167,7 +168,7 @@ Notes:
 | `set apnuser <u>` / `set apnpass <p>` | APN credentials |
 | `set ssid <name>` / `set pass <p>` | Wi-Fi bench only |
 | `set url <https://...>` | Worker base URL |
-| `set mqtthost <host>` | MQTT broker hostname (default HiveMQ Cloud) |
+| `set mqtthost <host>` | MQTT broker hostname (must be provisioned) |
 | `set mqttuser <u>` / `set mqttpass <p>` | MQTT credentials |
 | `set maxopen <1..240>` | Local maximum open time |
 | `sync` | Force HTTPS config/command sync |

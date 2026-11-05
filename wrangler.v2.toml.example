@@ -1,4 +1,10 @@
 # Water Valve API v2 (D1 + auth + revision + commands)
+#
+# This is a template. Copy it to `wrangler.v2.toml` (git-ignored) and fill in
+# your own D1 database id before deploying:
+#
+#   Copy-Item wrangler.v2.toml.example wrangler.v2.toml
+#
 # Local dev:
 #   npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=migrations/0001_init.sql
 #   npx wrangler dev --config wrangler.v2.toml --local
@@ -17,13 +23,13 @@ compatibility_date = "2024-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "water-valve-v2"
-database_id = "7ed1f52f-759e-4edd-a936-847c7277b824"
+database_id = "<YOUR_D1_DATABASE_ID>"
 migrations_dir = "migrations"
 
 [vars]
 # Browser origins allowed to call the API (comma separated).
-# Native Android does not need CORS; keep this only for the web admin console.
-ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:8788,https://esp32-cqw.pages.dev"
+# Native Android does not need CORS; keep only your own web console origins.
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:8788"
 
 # Do NOT put SETUP_TOKEN here. Use:
 #   npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml

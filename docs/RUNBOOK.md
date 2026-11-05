@@ -12,11 +12,11 @@
 |---|---|
 | Worker | `water-valve-api-v2` |
 | URL | `https://water-valve-api-v2.czqwertyyy.workers.dev` |
-| D1 | `water-valve-v2` (`7ed1f52f-759e-4edd-a936-847c7277b824`, APAC) |
-| Config | `wrangler.v2.toml` |
-| Setup token | Worker secret `SETUP_TOKEN`; สำเนา local `C:\Temp\opencode\water-valve-setup-token.txt` |
-| Household | `Home` สร้างแล้ว (`e2d4db8f-9c7e-41b5-bfec-ff2429deeee0`) |
-| Credentials | invite code/device token: `C:\Temp\opencode\water-valve-household.json`; รหัสบ้านปัจจุบัน: `C:\Temp\opencode\water-valve-household-password.txt` (ACL user-only — ลบไฟล์นี้หลังจำรหัสหรือเปลี่ยนรหัสใน Settings) |
+| D1 | `water-valve-v2` (APAC; `database_id` อยู่ใน `wrangler.v2.toml`) |
+| Config | `wrangler.v2.toml` (local, git-ignored; copy จาก `wrangler.v2.toml.example` แล้วใส่ `database_id`) |
+| Setup token | Worker secret `SETUP_TOKEN`; สำเนาเก็บไว้นอกรีโป ห้าม commit |
+| Household | `Home` สร้างแล้ว (ID เก็บนอก repo) |
+| Credentials | invite code, device token และรหัสบ้าน เก็บไว้นอกรีโปพร้อม ACL แบบ user-only; ลบสำเนารหัสหลังจำได้หรือหลังเปลี่ยนรหัสใน Settings |
 
 ## 2. Health check
 
@@ -36,7 +36,7 @@ npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0003_rate_limits.sql
 
 # 2) secret (ครั้งแรกหรือเมื่อ rotate)
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN = '<setup-token>'
 $env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
 
 # 3) deploy
@@ -47,7 +47,7 @@ npx wrangler deploy --config wrangler.v2.toml
 
 ```powershell
 $env:API_BASE = 'https://water-valve-api-v2.czqwertyyy.workers.dev'
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN = '<setup-token>'
 powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```
 
@@ -60,7 +60,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmm'
-$out = "C:\Temp\opencode\water-valve-v2-$stamp.sql"
+$out = "<backup-dir>\water-valve-v2-$stamp.sql"
 npx wrangler d1 export water-valve-v2 --config wrangler.v2.toml --remote --output $out
 Get-Item $out | Select-Object Name, Length
 ```
@@ -79,7 +79,7 @@ Cloudflare D1 มี Time Travel สำหรับย้อนฐานข้�
 ```powershell
 # ล้าง local state เฉพาะเครื่อง dev (ไม่กระทบ production)
 Remove-Item -Recurse -Force .wrangler\state -ErrorAction SilentlyContinue
-npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=C:\Temp\opencode\water-valve-v2-YYYYMMDD-HHmm.sql
+npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --local --file=<backup-file>.sql
 ```
 
 ยืนยันว่าตารางและจำนวนแถวตรงกับที่ export มา ก่อนเชื่อถือ backup
@@ -127,7 +127,7 @@ Invoke-RestMethod -Method Post -Headers @{ Authorization = "Bearer $token" } `
 # สร้างค่าใหม่ (อย่างน้อย 32 hex)
 $new = -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })
 $new | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
-$new | Set-Content C:\Temp\opencode\water-valve-setup-token.txt -Encoding ascii
+$new | Set-Content <token-file> -Encoding ascii
 ```
 
 - `/v1/setup` ยังใช้ token นี้สร้าง household เพิ่มได้ — หมุนหลัง Provisioning

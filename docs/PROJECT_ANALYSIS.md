@@ -1,11 +1,11 @@
 # รายงานวิเคราะห์โปรเจกต์ appesp32 (Water Valve Scheduler)
 
 - **วันที่ตรวจ:** 29 ตุลาคม 2026
-- **ขอบเขต:** Web UI (`index.html`), Cloudflare Worker (`worker/schedule-worker.js`), ESP32 firmware (`esp32_water_valve/esp32_water_valve.ino`), Android app (`C:\Users\ssde\AndroidStudioProjects\ESP32`)
+- **ขอบเขต:** Web UI (`index.html`), Cloudflare Worker (`worker/schedule-worker.js`), ESP32 firmware (`esp32_water_valve/esp32_water_valve.ino`), Android app (repository แยก)
 - **วิธีตรวจ:** อ่าน source ทั้งหมด, ตรวจ syntax JS/Worker, compile firmware, เรียก Worker ที่ deploy จริง, ทดสอบ logic ของ schedule/countdown/preview, ตรวจ Lighthouse
 - **เอกสารที่เกี่ยวข้อง:**
   - [`ARCHITECTURE_CENTRAL_CONFIG.md`](./ARCHITECTURE_CENTRAL_CONFIG.md) — สถาปัตยกรรมเป้าหมายสำหรับ central config + native Android
-  - `C:\Users\ssde\AndroidStudioProjects\ESP32\docs\MIGRATION_PLAN.md` — แผนย้าย Android จาก WebView เป็น native
+  - `docs/MIGRATION_PLAN.md` (repository แอปพลิเคชัน) — แผนย้าย Android จาก WebView เป็น native
 
 ---
 
@@ -18,7 +18,7 @@
 1. **Web UI** (`index.html`) — หน้าเว็บ Tailwind ที่แสดงสถานะวาล์ว, ตั้งโหมด auto/manual, ตั้งตารางเวลา, ตั้ง countdown, และแสดงอุณหภูมิ
 2. **Cloudflare Worker + KV + Cron** — เก็บ `{mode, schedules}` และคำสั่ง `{open}` ไว้ใน KV, มี cron ตรวจตารางทุกนาที
 3. **ESP32 firmware** — ต่อ WiFi, รับคำสั่งผ่าน MQTT, ดึง config จาก Worker ทุก 2 นาที, รันตารางเวลาเองในเครื่อง, รายงานสถานะผ่าน MQTT
-4. **Android app** — เป็น WebView wrapper โหลด `https://esp32-cqw.pages.dev` และมี MQTT client ในตัวเพื่อรับส่งคำสั่งกับ ESP32
+4. **Android app** — เป็น WebView wrapper โหลด `<legacy-web-ui-url>` และมี MQTT client ในตัวเพื่อรับส่งคำสั่งกับ ESP32
 
 ระบบ **ทำงานได้ในระดับ demo/ใช้งานจริงบางส่วน**: มีโค้ดรองรับการเปิด-ปิดวาล์วผ่าน MQTT, โหมด auto ทำงานใน ESP32 ได้แม้แอปปิด, มีการเก็บ config สำรองใน Cloudflare
 
@@ -61,7 +61,7 @@
 ## 2. โครงสร้างโปรเจกต์
 
 ```
-C:\Users\ssde\Documents\appesp32\
+appesp32\
 ├── index.html                     # Web UI ทั้งหมด (Tailwind + JS inline)
 ├── worker\
 │   └── schedule-worker.js         # Cloudflare Worker API + cron
@@ -72,7 +72,7 @@ C:\Users\ssde\Documents\appesp32\
 ├── docs\                          # เอกสารวิเคราะห์ (โฟลเดอร์นี้)
 └── .git\                          # git repo (local main ahead origin 5 commits)
 
-C:\Users\ssde\AndroidStudioProjects\ESP32\
+android-project\
 ├── app\src\main\java\com\example\esp32\
 │   ├── MainActivity.kt            # WebView wrapper
 │   ├── MqttManager.kt             # MQTT client + credential hardcode
@@ -86,7 +86,7 @@ C:\Users\ssde\AndroidStudioProjects\ESP32\
 
 **หมายเหตุ:** Android project ยังไม่เป็น git repo และยังไม่ได้แก้ไขไฟล์ใด ๆ ในรอบนี้
 
-**พบสำเนาซ้ำ:** `C:\Users\ssde\Documents\ESP32` มีไฟล์หลักเหมือนกับ `C:\Users\ssde\AndroidStudioProjects\ESP32` (hash ของ `MainActivity.kt`, `MqttManager.kt`, `build.gradle.kts`, `settings.gradle.kts` ตรงกัน) และ `.idea\workspace.xml` ยังชี้ไปที่ `AndroidStudioProjects\ESP32` จึงถือว่า **`AndroidStudioProjects\ESP32` เป็นโปรเจกต์หลัก** ก่อนลงมือแก้โค้ดควรเลือกเก็บที่เดียวและกันอีกที่ไว้เป็น backup
+**พบสำเนาซ้ำ:** ในเครื่องที่ใช้วิเคราะห์มีโปรเจกต์ Android สองชุดที่มีไฟล์หลักเหมือนกัน (hash ของ `MainActivity.kt`, `MqttManager.kt`, `build.gradle.kts`, `settings.gradle.kts` ตรงกัน) จึงถือว่า `<android-project>` เป็นโปรเจกต์หลัก ควรเหลือชุดเดียวและเก็บอีกชุดไว้เป็น backup
 
 ---
 
@@ -106,7 +106,7 @@ C:\Users\ssde\AndroidStudioProjects\ESP32\
            ▼
 ┌──────────────────────────────┐       2) fetch POST /config, /command
 │ Cloudflare Pages             │ ────────────────────────────────────┐
-│ https://esp32-cqw.pages.dev  │                                     │
+│ <legacy-web-ui-url>          │                                     │
 │  index.html + localStorage   │                                     ▼
 └──────────────────────────────┘                     ┌──────────────────────────────┐
            │ 3) AndroidBridge (JS -> Kotlin)         │ Cloudflare Worker            │
@@ -211,7 +211,7 @@ Key: `smartWaterValve_v1`
 
 ## 5. API ปัจจุบัน
 
-Base URL: `https://water-valve-scheduler.czqwertyyy.workers.dev/`
+Base URL: `<legacy-worker-url>/`
 
 | Method | Path | Auth | Body | Response | ผู้ใช้ |
 |---|---|---|---|---|---|
@@ -260,7 +260,7 @@ Base URL: `https://water-valve-scheduler.czqwertyyy.workers.dev/`
 | หัวข้อ | สถานะ |
 |---|---|
 | รูปแบบ UI | WebView 100% (`activity_main.xml` มีแค่ `WebView`) |
-| หน้าเว็บ | `https://esp32-cqw.pages.dev` |
+| หน้าเว็บ | `<legacy-web-ui-url>` |
 | การเชื่อมต่ออุปกรณ์ | MQTT ผ่าน Paho โดยตรงจากแอป |
 | Credential | hardcode ใน `MqttManager.kt` |
 | สถิติ build | minSdk 24, compile/target 34, Kotlin 1.9.24, AGP 8.7.3 |
@@ -282,7 +282,7 @@ findViewById<WebView>(R.id.webView).apply {
         WebAppInterface(this, commandProcessor, mqttManager),
         "AndroidBridge"
     )
-    loadUrl("https://esp32-cqw.pages.dev")
+    loadUrl("<legacy-web-ui-url>")
 }
 ```
 
@@ -298,7 +298,7 @@ findViewById<WebView>(R.id.webView).apply {
 
 `MqttManager.kt`:
 
-- `ssl://74bd39d864644eebb6efba20dadd4e93.s1.eu.hivemq.cloud:8883`
+- `ssl://<hivemq-cluster-host>:8883`
 - username/password แบบ hardcode (legacy — ลบออกจาก repo แล้ว; ต้อง rotate ที่ HiveMQ)
 - `cleanSession = true`, `automaticReconnect = true`
 - subscribe `myhouse/valve/status` และ `myhouse/+/status`

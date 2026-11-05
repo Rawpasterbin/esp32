@@ -1,7 +1,7 @@
 # Android runtime test report
 
 - **วันที่:** 31 ตุลาคม 2026
-- **เครื่องที่ทดสอบ:** Infinix X6815B, Android 12 (API 31), 1080×2460
+- **เครื่องที่ทดสอบ:** Android phone, Android 12 (API 31)
 - **APK:** `water-valve-2.0-native-debug.apk` (debug signed)
   - SHA-256: `5FD52B5F42CB575AFC8A2C0D0BC9F985C6287E16C99910BEF5AB0C0FA5C30B24`
 - **Backend:** production Worker `https://water-valve-api-v2.czqwertyyy.workers.dev`
@@ -63,15 +63,15 @@
 
 ## 4. ไฟล์หลักฐาน
 
-Screenshots อยู่ใน `C:\Temp\opencode\android-*.png` (นอก repo) ตั้งแต่
+Screenshots เก็บไว้นอกรีโป (ไม่ได้ commit) ตั้งแต่
 `android-01-login.png` ถึง `android-41-final-dashboard.png`
 
 ## 5. Board follow-up (5 Nov 2026)
 
-หลังทดสอบ app ได้ต่อบอร์ด ESP32 จริง (COM15, WiFi bench build v2.1.0):
+หลังทดสอบ app ได้ต่อบอร์ด ESP32 จริง (พอร์ต serial, WiFi bench build v2.1.0):
 
 - แฟลช firmware v2.1.0 (WiFi bench) สำเร็จ; NVS เดิมไม่ถูก erase
-- WiFi `noonit_2.4G` เชื่อมได้; DNS/TLS ผ่านหลังแก้ CA เป็น GlobalSign Root CA (RSA)
+- WiFi ของ tester เชื่อมได้; DNS/TLS ผ่านหลังแก้ CA เป็น GlobalSign Root CA (RSA)
 - `Sync HTTP 200`; บอร์ดได้ revision 16, 3 schedules, โหมด manual
 - ส่งคำสั่ง `close` ผ่าน API แล้วสั่ง `sync` ผ่าน serial → บอร์ด ack 200
 - MQTT เชื่อม HiveMQ Cloud ด้วย user ใหม่ → `CONNACK 0`, `getStatus` และ MQTT `close` ผ่าน

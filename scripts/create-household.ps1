@@ -6,8 +6,8 @@
 #     -HouseholdName 'บ้านของเรา'
 #
 # The password is prompted as a SecureString when -Password is omitted.
-# Output is written outside the repo (default C:\Temp\opencode) and contains
-# the device token. Never commit that file.
+# Output is written outside the repo (default: the current user's temp directory)
+# and contains the device token. Never commit that file.
 
 param(
   [Parameter(Mandatory = $true)]
@@ -19,7 +19,7 @@ param(
 
   [string]$ApiBase = 'https://water-valve-api-v2.czqwertyyy.workers.dev',
 
-  [string]$OutFile = 'C:\Temp\opencode\water-valve-household.json',
+  [string]$OutFile = (Join-Path ([System.IO.Path]::GetTempPath()) 'water-valve-household.json'),
 
   [switch]$Force
 )

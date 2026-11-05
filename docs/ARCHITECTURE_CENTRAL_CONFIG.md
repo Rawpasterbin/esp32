@@ -326,7 +326,7 @@ WHERE household_id = ? AND revision = ?;
 
 ## 6. API spec (v2)
 
-Base: `https://water-valve-scheduler.czqwertyyy.workers.dev/v1`
+Base: `<legacy-worker-url>/v1`
 
 ### 6.1 รูปแบบ response
 
@@ -1059,7 +1059,7 @@ com.example.esp32/
 - **ข้อจำกัดใหม่:** ESP32 ใช้ซิม 399 MB/เดือน → ใช้ MQTT เป็นช่องทาง real-time หลัก + HTTPS sync ทุก 15 นาที (ประเมิน ~10–30 MB/เดือน)
 - เริ่ม Phase 0–1 (backend) คู่ขนานกับ Phase 2 (Android read-only) ตามที่เลือก; Phase 3–4 ตามด้วย
 - อย่าใช้กับวาล์วน้ำจริงจนกว่า safety (C5) และ auth (C1) จะเสร็จ
-- รายละเอียดการย้าย Android อยู่ใน `C:\Users\ssde\AndroidStudioProjects\ESP32\docs\MIGRATION_PLAN.md`
+- รายละเอียดการย้าย Android อยู่ใน `docs/MIGRATION_PLAN.md` ของ repository แอปพลิเคชัน (แยกจาก repository นี้)
 
 ---
 
@@ -1131,10 +1131,10 @@ Worker v2 and D1 are deployed and verified end-to-end.
 |---|---|
 | Worker URL | `https://water-valve-api-v2.czqwertyyy.workers.dev` |
 | Worker name | `water-valve-api-v2` |
-| D1 database | `water-valve-v2` (APAC, id `7ed1f52f-759e-4edd-a936-847c7277b824`) |
+| D1 database | `water-valve-v2` (APAC; `database_id` อยู่ใน `wrangler.v2.toml`) |
 | Schema | `migrations/0001_init.sql` + `0002_auth_attempts.sql` + `0003_rate_limits.sql` applied remotely |
 | Health | `GET /health` → `200 {"version":"2.0.0"}` |
-| Setup token | stored as Worker secret `SETUP_TOKEN`; local copy at `C:\Temp\opencode\water-valve-setup-token.txt` (outside the repo) |
+| Setup token | stored as Worker secret `SETUP_TOKEN`; the local copy is kept outside the repository |
 | API smoke test | 95/95 checks pass against production (auth, rate limit, state, config revision/If-Match, 8-schedule limit, devices-aware ETag, commands, command rate limit, sync/ack, cross-household isolation, device-token scope, logout revocation, password/device-token rotation); test households and rate-limit rows deleted afterwards |
 
 Deploy/update commands:
@@ -1143,7 +1143,7 @@ Deploy/update commands:
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0001_init.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0002_auth_attempts.sql
 npx wrangler d1 execute water-valve-v2 --config wrangler.v2.toml --remote --file=migrations/0003_rate_limits.sql
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN = '<setup-token>'
 $env:SETUP_TOKEN | npx wrangler secret put SETUP_TOKEN --config wrangler.v2.toml
 npx wrangler deploy --config wrangler.v2.toml
 ```
@@ -1152,7 +1152,7 @@ Run the API tests against production:
 
 ```powershell
 $env:API_BASE = 'https://water-valve-api-v2.czqwertyyy.workers.dev'
-$env:SETUP_TOKEN = Get-Content C:\Temp\opencode\water-valve-setup-token.txt -Raw
+$env:SETUP_TOKEN = '<setup-token>'
 powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1
 ```
 

@@ -2,3 +2,20 @@
 node_modules/
 .dev.vars
 *.local
+wrangler.v2.toml
+
+# Secrets / signing material (never commit)
+*.keystore
+*.jks
+*.p12
+*.pfx
+keystore.properties
+github-token.txt
+hivemq-device.txt
+water-valve-household*.json
+*-password.txt
+*.secret
+*.apk
+!releases/*.apk
+hs_err_pid*.log
+replay_pid*.log

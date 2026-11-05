@@ -10,6 +10,7 @@
 | [`ARCHITECTURE_CENTRAL_CONFIG.md`](./ARCHITECTURE_CENTRAL_CONFIG.md) | สถาปัตยกรรมเป้าหมาย: central config ด้วย D1 + revision + auth, API spec, sync protocol, safety, แผน migration, ประมาณการงาน |
 | [`HARDWARE_TEST_CHECKLIST.md`](./HARDWARE_TEST_CHECKLIST.md) | ขั้นตอนทดสอบฮาร์ดแวร์: relay polarity, cellular/TLS, MQTT ACL, sync/ack, safety, data budget, Android runtime |
 | [`SECURITY.md`](./SECURITY.md) | การจัดการ secret, incident ของ MQTT credential เก่า และขั้นตอน rotate |
+| [`SECRET_AUDIT.md`](./SECRET_AUDIT.md) | ผลตรวจ secret ทั้ง 2 repo: working tree/history, สิ่งที่ต้อง rotate, ข้อควรระวัง history rewrite |
 | [`RUNBOOK.md`](./RUNBOOK.md) | คู่มือ production: deploy, backup/restore D1, rotate token/รหัสบ้าน, วินิจฉัยปัญหา, incident response |
 | [`ANDROID_RUNTIME_TEST.md`](./ANDROID_RUNTIME_TEST.md) | ผลทดสอบ native app บนเครื่องจริง: login, mode/schedule, command/ack, conflict, offline cache, password/logout |
 | [`MQTT_SETUP.md`](./MQTT_SETUP.md) | สร้าง HiveMQ device user + ACL + provision credential อย่างปลอดภัย |
@@ -18,7 +19,7 @@
 
 | เอกสาร | เนื้อหา |
 |---|---|
-| `C:\Users\ssde\AndroidStudioProjects\ESP32\docs\MIGRATION_PLAN.md` | แผนย้าย Android จาก WebView เป็น native Compose UI + เชื่อม Worker API |
+| `docs/MIGRATION_PLAN.md` (repository แอปพลิเคชัน) | แผนย้าย Android จาก WebView เป็น native Compose UI + เชื่อม Worker API |
 
 ## สรุปสั้น
 
