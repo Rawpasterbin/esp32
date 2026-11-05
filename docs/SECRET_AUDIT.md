@@ -96,7 +96,7 @@ private key, device token, session token, setup token, invite code,
 
 ```powershell
 # backup ก่อน
-git bundle create C:\Temp\opencode\appesp32-backup.bundle --all
+git bundle create <backup-dir>\appesp32-backup.bundle --all
 
 # ติดตั้ง git-filter-repo แล้วสร้าง replacements.txt
 # ใส่ค่าที่ต้องการ redact (ห้าม commit ไฟล์นี้)
@@ -128,12 +128,12 @@ Scanner ตรวจเฉพาะ working tree และจะ fail ถ้า�
 
 ไฟล์ต่อไปนี้เป็น secret และ **ห้าม commit**:
 
-- `C:\Temp\opencode\water-valve-household.json` — invite code/device token
-- `C:\Temp\opencode\water-valve-household-password.txt` — รหัสบ้าน
-- `C:\Temp\opencode\water-valve-setup-token.txt` — setup token
-- `C:\Temp\opencode\hivemq-device.txt` — MQTT credential
-- `C:\Temp\opencode\water-valve-release.keystore` — signing key
-- `C:\Temp\opencode\water-valve-keystore-password.txt` — keystore password
+- `<secret-dir>\water-valve-household.json` — invite code/device token
+- `<secret-dir>\water-valve-household-password.txt` — รหัสบ้าน
+- `<secret-dir>\water-valve-setup-token.txt` — setup token
+- `<secret-dir>\hivemq-device.txt` — MQTT credential
+- `<secret-dir>\water-valve-release.keystore` — signing key
+- `<secret-dir>\water-valve-keystore-password.txt` — keystore password
 - `.dev.vars` — local Worker setup token (git-ignored)
 
 ควรเก็บใน password manager และลบไฟล์ที่ไม่จำเป็นหลัง provisioning
