@@ -1,72 +1,77 @@
 # Water Valve Controller v2 (ESP32 + A7672X)
 
-Firmware for one water valve, driven by an ESP32 over a 4G/5G SIM.
-Cloudflare Worker v2 + D1 is the source of truth for mode and schedules;
-MQTT is the real-time command/status channel.
+> ภาษา: **ไทย** | [English](README.en.md)
+
+Firmware สำหรับวาล์วน้ำ 1 ตัว ควบคุมด้วย ESP32 ผ่านซิม 4G/5G
+Cloudflare Worker v2 + D1 เป็น source of truth ของ mode และ schedule;
+MQTT เป็นช่องทาง command/status แบบ real-time
 
 ```
 Android app ──HTTPS──> Worker v2 ──D1 (config, commands, audit)
                             ▲
-                            │ HTTPS sync (15 min)
+                            │ HTTPS sync (15 นาที)
                             │
-ESP32 ──MQTT/TLS 8883──> HiveMQ Cloud <──MQTT/TLS── Android app
+ESP32 ──MQTT/TLS 8883──> HiveMQ Cloud
 ```
 
-## What changed from v1
+> แอป Android ปัจจุบันใช้ HTTPS + command queue; MQTT เป็นช่องทางของ ESP32
+> (และอนาคตถ้าจะทำ real-time control ในแอป)
 
-- Mode and schedules come from Worker v2, not from the phone.
-- Every command has a `commandId` (the last 8 are remembered across reboots,
-  so a QoS1 redelivery cannot execute twice) and a TTL (`expiresAt`).
-- Overnight schedules (for example 22:00–06:00) work correctly: the
-  after-midnight part uses the previous day's flag.
-- The valve is forced **closed** at boot and closed again if it stays open
-  longer than `maxopen` minutes, even with no network.
-- Wi-Fi is only a bench/debug option; production uses the A7672X modem.
-- No WebView, no web UI dependency.
+## สิ่งที่เปลี่ยนจาก v1
 
-## Hardware
+- mode และ schedule มาจาก Worker v2 ไม่ใช่จากมือถือ
+- ทุกคำสั่งมี `commandId` (จำ 8 ID ล่าสุดข้าม reboot ทำให้ QoS1 redelivery
+  ไม่ execute ซ้ำ) และมี TTL (`expiresAt`)
+- schedule ข้ามคืน (เช่น 22:00–06:00) ทำงานถูกต้อง: ช่วงหลังเที่ยงคืนใช้
+  flag ของวันก่อนหน้า
+- วาล์วถูกบังคับให้ **ปิด** ตอน boot และปิดอีกครั้งถ้าเปิดนานเกิน `maxopen`
+  นาที แม้ไม่มีเน็ต
+- Wi-Fi ใช้เฉพาะ bench/debug; production ใช้ modem A7672X
+- ไม่มี WebView และไม่พึ่ง web UI
 
-| Signal | ESP32 pin | Notes |
+## ฮาร์ดแวร์
+
+| Signal | ESP32 pin | หมายเหตุ |
 |---|---|---|
 | Modem UART RX | GPIO16 | ESP32 RX ← A7672X TX |
 | Modem UART TX | GPIO17 | ESP32 TX → A7672X RX |
-| Modem power | 5 V | Use a supply that can deliver 2 A peaks |
-| Relay IN | GPIO23 | Active level must be verified on the bench |
-| Relay VCC/GND | 5 V / GND | Common ground with the ESP32 |
-| Valve | Relay COM/NO | Use a relay rated for the valve current |
+| Modem power | 5 V | ใช้ supply ที่จ่าย peak ได้ 2 A |
+| Relay IN | GPIO23 | ต้องตรวจ active level บน bench |
+| Relay VCC/GND | 5 V / GND | ต่อ ground ร่วมกับ ESP32 |
+| Valve | Relay COM/NO | ใช้ relay ที่รับกระแสวาล์วได้ |
 
-**Power:** do not power the A7672X from the ESP32 3.3 V pin. Cellular
-transmit bursts can brown out the board and reset the modem. Use a separate
-5 V supply with a common ground, and add bulk capacitance (≥ 470 µF) near
-the modem if needed.
+**ไฟเลี้ยง:** ห้ามเลี้ยง A7672X จากขา 3.3 V ของ ESP32 เพราะ cellular
+transmit burst อาจทำให้บอร์ด brown out และ modem reset ให้ใช้ supply 5 V
+แยกและต่อ ground ร่วมกัน และเพิ่ม bulk capacitance (≥ 470 µF) ใกล้ modem
+ถ้าจำเป็น
 
-**Relay safety:** the default is `RELAY_ACTIVE_HIGH 1` (HIGH = valve open),
-matching the old firmware. Some relay modules are active-low. Before
-connecting the valve, flash the firmware, watch the relay LED, and confirm:
+**ความปลอดภัยของ relay:** ค่าเริ่มต้นคือ `RELAY_ACTIVE_HIGH 1`
+(HIGH = เปิดวาล์ว) ตาม firmware เดิม แต่ relay module บางรุ่นเป็น active-low
+ก่อนต่อวาล์วจริง ให้ flash firmware แล้วดู LED ของ relay และยืนยันว่า:
 
-- boot → relay off / valve closed
-- `set`/`sync`/command → relay clicks only when expected
+- boot → relay off / วาล์วปิด
+- `set`/`sync`/command → relay click เฉพาะตอนที่ควร
 
-If the logic is inverted, change `RELAY_ACTIVE_HIGH` to `0` and reflash.
+ถ้า logic กลับด้าน ให้เปลี่ยน `RELAY_ACTIVE_HIGH` เป็น `0` แล้ว flash ใหม่
 
-For a solenoid valve, add a flyback diode across the coil and a fuse on the
-valve supply. Do not switch mains voltage on a breadboard.
+สำหรับ solenoid valve ให้เพิ่ม flyback diode คร่อม coil และ fuse ที่ไฟเลี้ยง
+วาล์ว ห้ามสลับไฟบ้านบน breadboard
 
-## Required libraries
+## ไลบรารีที่ต้องใช้
 
-Install with Library Manager or `arduino-cli lib install`:
+ติดตั้งผ่าน Library Manager หรือ `arduino-cli lib install`:
 
-- `TinyGSM` **0.12.0** (A7672X support)
+- `TinyGSM` **0.12.0** (รองรับ A7672X)
 - `PubSubClient` **2.8**
-- `ArduinoJson` **7.x** (tested 7.4.3)
+- `ArduinoJson` **7.x** (ทดสอบ 7.4.3)
 - ESP32 core **3.3.11** (`esp32:esp32`)
 
-`Preferences`, `WiFi`, `WiFiClientSecure` and `esp_task_wdt` come with the
-ESP32 core.
+`Preferences`, `WiFi`, `WiFiClientSecure` และ `esp_task_wdt` มาพร้อม
+ESP32 core
 
 ## Build
 
-Cellular production build (default, `USE_CELLULAR=1`):
+Cellular production build (ค่าเริ่มต้น, `USE_CELLULAR=1`):
 
 ```powershell
 arduino-cli compile --fqbn esp32:esp32:esp32 `
@@ -83,21 +88,21 @@ arduino-cli compile --fqbn esp32:esp32:esp32 `
   esp32_water_valve
 ```
 
-Flash (replace `COM5`):
+Flash (เปลี่ยน `COM5` ตามพอร์ตจริง):
 
 ```powershell
 arduino-cli upload -p COM5 --fqbn esp32:esp32:esp32 esp32_water_valve
 ```
 
-The Wi-Fi build is larger (TLS + Wi-Fi ≈ 1.05 MB / 80% of the default app
-partition) but still fits. The cellular build is ≈ 460 KB.
+Wi-Fi build ใหญ่กว่า (TLS + Wi-Fi ≈ 1.05 MB / 80% ของ app partition
+ค่าเริ่มต้น) แต่ยังพอดี ส่วน cellular build ≈ 460 KB
 
-## First-time provisioning
+## Provisioning ครั้งแรก
 
-Open the serial monitor at **115200** baud, line ending **Newline**.
-Provisioning is stored in NVS and survives reboots.
+เปิด serial monitor ที่ **115200** baud, line ending **Newline**
+ค่าที่ provision จะเก็บใน NVS และอยู่ข้าม reboot
 
-1. Create the household/device with Worker setup (once per household):
+1. สร้าง household/device ด้วย Worker setup (ครั้งเดียวต่อ household):
 
 ```powershell
 $body = @{
@@ -114,10 +119,10 @@ Invoke-RestMethod -Method Post `
   -Body $body
 ```
 
-The response contains `inviteCode`, `deviceId` and `deviceToken` (`dev_...`).
-Keep the device token secret; it is shown only once.
+ผลลัพธ์จะมี `inviteCode`, `deviceId` และ `deviceToken` (`dev_...`)
+เก็บ device token เป็นความลับ เพราะแสดงครั้งเดียว
 
-2. On the ESP32 serial console:
+2. บน serial console ของ ESP32:
 
 ```text
 set token dev_xxxxxxxxxxxxxxxx
@@ -134,69 +139,67 @@ status
 reboot
 ```
 
-For the Wi-Fi bench build only:
+เฉพาะ Wi-Fi bench build:
 
 ```text
 set ssid <wifi-name>
 set pass <wifi-password>
 ```
 
-Notes:
+หมายเหตุ:
 
-- `set url` strips trailing slashes.
-- `set maxopen` accepts 1–240 minutes; the default is 30.
-- `status` prints secrets masked.
-- `sync` forces an immediate HTTPS sync.
-- The default Worker URL and MQTT host are compiled in but can be
-  overridden with `set url`, `set mqtthost`, `set mqttuser`/`set mqttpass`.
-- The default APN is `internet`; change it for your carrier if needed.
+- `set url` จะตัด trailing slash ออก
+- `set maxopen` รับ 1–240 นาที; ค่าเริ่มต้น 30
+- `status` แสดง secret แบบ mask
+- `sync` บังคับ HTTPS sync ทันที
+- Worker URL และ MQTT host มีค่าเริ่มต้นใน firmware แต่ override ได้ด้วย
+  `set url`, `set mqtthost`, `set mqttuser`/`set mqttpass`
+- APN ค่าเริ่มต้นคือ `internet`; เปลี่ยนตาม carrier ถ้าจำเป็น
 
-## Serial commands
+## คำสั่ง serial
 
-| Command | Meaning |
+| Command | ความหมาย |
 |---|---|
-| `help` | Show the command list |
-| `show` | Print configuration (secrets masked) |
-| `set token <dev_...>` | Device token from `/v1/setup` |
-| `set apn <name>` | Cellular APN |
-| `set apnuser <u>` / `set apnpass <p>` | APN credentials |
-| `set ssid <name>` / `set pass <p>` | Wi-Fi bench only |
-| `set url <https://...>` | Worker base URL |
-| `set mqtthost <host>` | MQTT broker hostname (default HiveMQ Cloud) |
-| `set mqttuser <u>` / `set mqttpass <p>` | MQTT credentials |
-| `set maxopen <1..240>` | Local maximum open time |
-| `sync` | Force HTTPS config/command sync |
-| `status` | Publish MQTT status and print config |
-| `reboot` | Restart the ESP32 |
+| `help` | แสดงรายการคำสั่ง |
+| `show` | พิมพ์ config (secret ถูก mask) |
+| `set token <dev_...>` | device token จาก `/v1/setup` |
+| `set apn <name>` | APN ของ cellular |
+| `set apnuser <u>` / `set apnpass <p>` | credential ของ APN |
+| `set ssid <name>` / `set pass <p>` | Wi-Fi bench เท่านั้น |
+| `set url <https://...>` | base URL ของ Worker |
+| `set mqtthost <host>` | hostname ของ MQTT broker (ค่าเริ่มต้น HiveMQ Cloud) |
+| `set mqttuser <u>` / `set mqttpass <p>` | MQTT credential |
+| `set maxopen <1..240>` | เวลาเปิดสูงสุดฝั่งเครื่อง (นาที) |
+| `sync` | บังคับ HTTPS config/command sync |
+| `status` | publish MQTT status และพิมพ์ config |
+| `reboot` | restart ESP32 |
 
 ## Timezone
 
-Schedules and NTP use a fixed **UTC+7 (Asia/Bangkok)** offset
-(`GMT_OFFSET_SEC` in the sketch). The Worker household has a `timezone`
-field, but the firmware does not read it yet. If the house is not in
-UTC+7, change `GMT_OFFSET_SEC` and redeploy. The Android app renders
-schedule times in the phone's local timezone, so the phone must use the
-same timezone as the valve.
+Schedule และ NTP ใช้ offset คงที่ **UTC+7 (Asia/Bangkok)**
+(`GMT_OFFSET_SEC` ใน sketch) Worker household มี field `timezone`
+แต่ firmware ยังไม่อ่านค่านี้ ถ้าบ้านไม่ได้อยู่ UTC+7 ให้เปลี่ยน
+`GMT_OFFSET_SEC` แล้ว deploy ใหม่ แอป Android แสดงเวลา schedule ตาม
+timezone ของมือถือ ดังนั้นมือถือต้องตั้ง timezone เดียวกับวาล์ว
 
 ## MQTT topics
 
-> **v1 isolation warning:** topics are global (`myhouse/valve/...`) and the
-> HiveMQ user is shared. Deploy only one household/valve per MQTT broker until
-> per-device topics or scoped credentials are implemented. See
-> `../docs/SECURITY.md`.
+> **คำเตือนเรื่อง isolation ใน v1:** topic เป็น global (`myhouse/valve/...`)
+> และใช้ HiveMQ user ร่วมกัน ให้ deploy แค่ 1 household/valve ต่อ MQTT broker
+> จนกว่าจะทำ per-device topic หรือ scoped credential (ดู `../docs/SECURITY.md`)
 
-MQTT is optional for v1: if `mqttuser`/`mqttpass` are empty, the device still
-connects, syncs config every 15 minutes, and runs schedules/queued commands.
-The only difference is that real-time MQTT control/status is unavailable.
+MQTT เป็น optional สำหรับ v1: ถ้า `mqttuser`/`mqttpass` ว่าง อุปกรณ์ยัง
+เชื่อมต่อ, sync config ทุก 15 นาที และรัน schedule/queued command ได้
+ต่างกันแค่ไม่มี real-time MQTT control/status
 
-Default prefix: `myhouse/valve/`.
+Prefix ค่าเริ่มต้น: `myhouse/valve/`
 
-| Topic | Direction | Payload |
+| Topic | ทิศทาง | Payload |
 |---|---|---|
-| `control` | app → ESP32 | `ON` / `OFF`, or JSON (below) |
-| `status` | ESP32 → app | state JSON (below) |
-| `mode` | legacy | `{"mode":"auto"}` — overwritten by next sync |
-| `schedule` | legacy | `{"schedules":[...]}` — overwritten by next sync |
+| `control` | app → ESP32 | `ON` / `OFF` หรือ JSON (ด้านล่าง) |
+| `status` | ESP32 → app | state JSON (ด้านล่าง) |
+| `mode` | legacy | `{"mode":"auto"}` — ถูก override ด้วย sync ถัดไป |
+| `schedule` | legacy | `{"schedules":[...]}` — ถูก override ด้วย sync ถัดไป |
 
 Control JSON:
 
@@ -208,15 +211,14 @@ Control JSON:
 }
 ```
 
-Supported `cmd`: `open`, `close`, `toggle`, `getStatus`, `sync`, `reboot`.
-`ON`/`OFF` remain for compatibility and have no TTL. Commands with an
-`expiresAt` are rejected when the local clock is past the TTL (plus 5 s
-grace). The last 8 command IDs are remembered in NVS, so the same
-`commandId` is executed at most once even after a reboot or MQTT redelivery.
-Opening is rejected in auto mode (`auto_mode`); **closing is always allowed**
-so a manual close can stop the valve after the household switches to auto.
+`cmd` ที่รองรับ: `open`, `close`, `toggle`, `getStatus`, `sync`, `reboot`
+`ON`/`OFF` ยังอยู่เพื่อ compatibility และไม่มี TTL คำสั่งที่มี `expiresAt`
+จะถูกปฏิเสธถ้า clock ในเครื่องเลย TTL (บวก grace 5 วินาที) จำ command ID
+8 ตัวล่าสุดใน NVS ทำให้ `commandId` เดิมถูก execute มากสุดครั้งเดียว
+แม้ reboot หรือ MQTT redelivery การเปิดถูกปฏิเสธใน auto mode (`auto_mode`);
+**การปิดทำได้เสมอ** เพื่อให้ manual close หยุดวาล์วได้หลังบ้านเปลี่ยนเป็น auto
 
-Status JSON (abridged):
+Status JSON (ย่อ):
 
 ```json
 {
@@ -235,14 +237,14 @@ Status JSON (abridged):
 }
 ```
 
-`lastCommandId` is the real-time ack for a successful MQTT command.
-`lastRejectedId`/`lastRejectedError` report a rejected command. The next
-HTTPS sync also marks `lastCommandId` as acked in D1, so an ack is not lost
-if the app misses the status message.
+`lastCommandId` คือ real-time ack ของคำสั่ง MQTT ที่สำเร็จ
+`lastRejectedId`/`lastRejectedError` รายงานคำสั่งที่ถูกปฏิเสธ HTTPS sync
+ครั้งถัดไปจะ mark `lastCommandId` ว่า acked ใน D1 ด้วย ทำให้ ack ไม่หาย
+ถ้าแอปพลาด status message
 
 ## HTTPS sync
 
-Every 15 minutes (60 s retry after a failure) the firmware calls:
+ทุก 15 นาที (retry 60 วินาทีหลัง fail) firmware จะเรียก:
 
 ```
 POST /v1/devices/sync
@@ -260,107 +262,111 @@ Content-Type: application/json
 }
 ```
 
-> An MQTT reconnect does **not** force an HTTPS sync. Sync runs on schedule,
-> right after a network reconnect, or when the serial `sync` command is used.
-> This keeps the SIM data budget predictable when MQTT flaps.
+> MQTT reconnect **ไม่** บังคับให้ HTTPS sync ทันที sync จะรันตามรอบ,
+> หลัง network reconnect หรือเมื่อใช้คำสั่ง serial `sync`
+> เพื่อให้ data budget บนซิมคาดเดาได้เมื่อ MQTT flap
 
-The response contains `revision`, `mode`, `schedules`, an optional pending
-`command` and `serverTime`. If the clock is not set yet, `serverTime` is
-used to set it before evaluating schedules.
+response มี `revision`, `mode`, `schedules`, `command` ที่ค้างอยู่ (ถ้ามี)
+และ `serverTime` ถ้า clock ยังไม่ถูกตั้ง จะใช้ `serverTime` ตั้งก่อน
+ประเมิน schedule
 
-### Important A7672X limitation: one TLS session
+### ข้อจำกัดสำคัญของ A7672X: TLS session เดียว
 
-TinyGSM's A7672X driver uses SSL session 0 for every secure client. MQTT
-and HTTPS therefore cannot stay open at the same time. The firmware:
+TinyGSM driver ของ A7672X ใช้ SSL session 0 สำหรับทุก secure client
+ดังนั้น MQTT และ HTTPS จึงเปิดพร้อมกันไม่ได้ firmware จะ:
 
-1. disconnects MQTT (sends DISCONNECT + closes the TLS session),
-2. performs the HTTPS sync/ack,
-3. reconnects MQTT on the next loop iteration.
+1. disconnect MQTT (ส่ง DISCONNECT + ปิด TLS session)
+2. ทำ HTTPS sync/ack
+3. reconnect MQTT ใน loop ถัดไป
 
-During this short window (a few seconds every 15 minutes) MQTT commands
-are not delivered. For critical control, the app should also POST
-`/v1/commands` so the command is queued in D1 and delivered by the next
-sync. Do not "fix" this by opening two TinyGSM secure clients: the modem
-session and `sockets[0]` routing will collide.
+ในช่วงสั้น ๆ นี้ (ไม่กี่วินาทีทุก 15 นาที) คำสั่ง MQTT จะไม่ถูกส่ง
+สำหรับงานที่สำคัญ แอปควร POST `/v1/commands` เพื่อให้คำสั่งเข้า queue
+ใน D1 และถูกส่งใน sync ถัดไป ห้าม "แก้" ด้วยการเปิด TinyGSM secure client
+สองตัว เพราะ modem session และ `sockets[0]` routing จะชนกัน
 
-## Data budget (399 MB/month SIM)
+## Data budget (ซิม 399 MB/เดือน)
 
-The single-session design means a fresh TLS handshake for every sync and
-MQTT reconnect. A realistic estimate:
+การออกแบบ single-session ทำให้มี TLS handshake ใหม่ทุก sync และ MQTT
+reconnect ประมาณการจริง:
 
-| Traffic | Estimate |
+| Traffic | ประมาณ |
 |---|---|
-| HTTPS sync every 15 min (handshake + request/response) | 30–60 MB/month |
-| MQTT reconnect after each sync | 20–40 MB/month |
-| Status every 5 min | 3–5 MB/month |
-| Commands/acks | < 1 MB/month |
-| **Total** | **~55–105 MB/month** |
+| HTTPS sync ทุก 15 นาที (handshake + request/response) | 30–60 MB/เดือน |
+| MQTT reconnect หลังแต่ละ sync | 20–40 MB/เดือน |
+| Status ทุก 5 นาที | 3–5 MB/เดือน |
+| Commands/acks | < 1 MB/เดือน |
+| **รวม** | **~55–105 MB/เดือน** |
 
-This leaves ample headroom under 399 MB. If the carrier charges for
-signaling or the modem retries aggressively, check the SIM dashboard
-after the first week and increase `SYNC_INTERVAL_MS` if needed.
+ยังเหลือ headroom จาก 399 MB ถ้า carrier คิดค่า signaling หรือ modem retry
+หนัก ให้ดู SIM dashboard หลังสัปดาห์แรกและเพิ่ม `SYNC_INTERVAL_MS` ถ้าจำเป็น
 
-## Safety behavior
+## การทำงานด้านความปลอดภัย
 
-- Relay is driven to **closed** before anything else in `setup()`.
-- `maxopen` (default 30 min) is enforced locally; the valve closes even if
-  the network is down. The fault is reported as `max_runtime`.
-- A `close` command is accepted in both manual and auto mode. An `open`
-  command is accepted only in manual mode.
-- A manual `close` during an active auto schedule is latched in NVS and wins
-  until that window ends. Without the latch the 10-second `autoCheck` would
-  reopen the valve. Changing to manual mode clears the latch.
-- A new `open` command clears the latch; a schedule that becomes inactive
-  also clears it.
-- Commands with a TTL are rejected if the clock is not synchronized.
-- A 120 s task watchdog resets the ESP32 if the loop hangs.
-- The valve state is not persisted across reboot; it always boots closed.
+- Relay ถูกสั่ง **ปิด** ก่อนอย่างอื่นทั้งหมดใน `setup()`
+- `maxopen` (ค่าเริ่มต้น 30 นาที) ถูกบังคับใช้ฝั่งเครื่อง; วาล์วปิดแม้เน็ตหลุด
+  และรายงาน fault เป็น `max_runtime`
+- คำสั่ง `close` ทำได้ทั้ง manual และ auto; คำสั่ง `open` ทำได้เฉพาะ manual
+- manual `close` ระหว่าง auto schedule ที่ active จะถูก latch ใน NVS และชนะ
+  จนจบ window ถ้าไม่มี latch นี้ `autoCheck` ทุก 10 วินาทีจะเปิดวาล์วซ้ำ
+  การเปลี่ยนเป็น manual จะล้าง latch
+- คำสั่ง `open` ใหม่จะล้าง latch; schedule ที่จบลงก็ล้าง latch เช่นกัน
+- คำสั่งที่มี TTL จะถูกปฏิเสธถ้า clock ยังไม่ sync
+- task watchdog 120 วินาทีจะ reset ESP32 ถ้า loop ค้าง
+- สถานะวาล์วไม่ถูกเก็บข้าม reboot; boot มาจะปิดเสมอ
 
 ## TLS certificate rotation
 
-As of **5 Nov 2026**, `water-valve-api-v2.czqwertyyy.workers.dev` serves a
-chain rooted at **GlobalSign Root CA (RSA)**:
+ณ **5 พ.ย. 2026** `water-valve-api-v2.czqwertyyy.workers.dev` ให้ chain
+ที่ root เป็น **GlobalSign Root CA (RSA)**:
 leaf → Google Trust Services WE1 → GTS Root R4 (cross-signed) →
-GlobalSign Root CA. The firmware's `ROOT_CA` is that RSA root.
+GlobalSign Root CA และ `ROOT_CA` ของ firmware คือ RSA root นี้
 
-MQTT (HiveMQ Cloud) uses a different chain rooted at **ISRG Root X1**
-(Let's Encrypt); `ROOT_CA_HIVEMQ` holds that root. The WiFi build creates a
-persistent bundle (`ROOT_CA` + `ROOT_CA_HIVEMQ`) and calls `setCACert()` once.
-The bundle must stay alive for the client lifetime — a temporary `String`
-causes mbedTLS "X509 - Format not recognized".
+MQTT (HiveMQ Cloud) ใช้ chain คนละตัว root เป็น **ISRG Root X1**
+(Let's Encrypt); `ROOT_CA_HIVEMQ` เก็บ root นี้ WiFi build จะสร้าง
+bundle ถาวร (`ROOT_CA` + `ROOT_CA_HIVEMQ`) และเรียก `setCACert()` ครั้งเดียว
+bundle ต้องมีอายุตลอดอายุ client — ถ้าใช้ `String` ชั่วคราวจะทำให้ mbedTLS
+ขึ้น "X509 - Format not recognized"
 
-If Cloudflare or HiveMQ changes the chain:
+ถ้า Cloudflare หรือ HiveMQ เปลี่ยน chain:
 
-1. Inspect the real chain from a client that reaches the endpoint:
+1. ตรวจ chain จริงจาก client ที่ต่อถึง endpoint:
    `openssl s_client -showcerts -connect <host>:443|8883 -servername <host>`
-2. Get the root CA PEM.
-3. Replace `ROOT_CA` (HTTPS) or `ROOT_CA_HIVEMQ` (MQTT) in
-   `esp32_water_valve.ino`.
-4. Reflash. The firmware re-uploads the configured CA to the modem as
-   `cfroot.pem` at boot.
+2. ดึง root CA PEM
+3. เปลี่ยน `ROOT_CA` (HTTPS) หรือ `ROOT_CA_HIVEMQ` (MQTT) ใน
+   `esp32_water_valve.ino`
+4. Flash ใหม่ firmware จะ upload CA ไปเก็บใน modem เป็น `cfroot.pem`
+   ตอน boot
 
-The modem certificate file is small (~1–2 KB) and is uploaded once per
-boot, so a factory-reset modem recovers automatically.
+ไฟล์ certificate ใน modem เล็ก (~1–2 KB) และ upload ครั้งเดียวต่อ boot
+ดังนั้น modem ที่ factory-reset จะกลับมาทำงานได้เอง
 
-## Troubleshooting
+## แก้ปัญหา
 
-| Symptom | Check |
+| อาการ | ตรวจสอบ |
 |---|---|
-| `modem.init failed` | 5 V supply/current, TX/RX crossed, SIM seated, antenna, `SerialAT.begin` pins |
-| `GPRS connect failed` | APN, SIM data plan, signal; try `set apn` |
+| `modem.init failed` | supply 5 V/current, TX/RX ไขว้กัน, SIM เสียบแน่น, antenna, ขา `SerialAT.begin` |
+| `GPRS connect failed` | APN, แพ็กเกจ data ของ SIM, signal; ลอง `set apn` |
 | `MQTT failed, rc=-2` | TLS/network; CA, clock, port 8883 |
-| `MQTT failed, rc=4` | Bad MQTT username/password |
-| `MQTT failed, rc=5` | HiveMQ ACL does not allow the topic |
-| `Sync HTTP 401` | Device token wrong/revoked; run `set token` again |
-| `Sync HTTP 0` | DNS/TLS/connect failure; check serial log and CA |
-| `TLS: CA upload failed` | Modem file system; power-cycle modem, check `AT+CCERTLIST` |
-| Relay inverted | Set `RELAY_ACTIVE_HIGH 0`, reflash, retest without the valve |
-| Valve closes unexpectedly | `maxopen` reached, schedule ended, or MQTT `close` |
+| `MQTT failed, rc=4` | MQTT username/password ผิด |
+| `MQTT failed, rc=5` | HiveMQ ACL ไม่อนุญาต topic |
+| `Sync HTTP 401` | device token ผิด/ถูก revoke; รัน `set token` ใหม่ |
+| `Sync HTTP 0` | DNS/TLS/connect fail; ดู serial log และ CA |
+| `TLS: CA upload failed` | file system ของ modem; power-cycle modem, ตรวจ `AT+CCERTLIST` |
+| Relay กลับด้าน | ตั้ง `RELAY_ACTIVE_HIGH 0`, flash ใหม่, ทดสอบโดยยังไม่ต่อวาล์ว |
+| วาล์วปิดเองไม่คาดคิด | ถึง `maxopen`, schedule จบ, หรือมี MQTT `close` |
 
-## Files
+## ไฟล์
 
 - `esp32_water_valve.ino` — firmware
-- `README.md` — this file
+- `README.md` — ไฟล์นี้
 - Worker API: `../worker/v2/index.js`
 - Schema: `../migrations/0001_init.sql`
 - Architecture: `../docs/ARCHITECTURE_CENTRAL_CONFIG.md`
+
+## หมายเหตุเรื่องคำศัพท์
+
+คำเทคนิคเช่น MQTT, TLS, HTTPS, ESP32, A7672X, HiveMQ, Cloudflare, Worker,
+D1, token, firmware, provisioning, sync, deploy, build, relay, watchdog,
+maxopen, schedule, mode, manual, auto, command queue, TTL, idempotency,
+ACL, CA, NTP, RSSI, payload, QoS, NVS, UART, GPIO คงเป็นภาษาอังกฤษเพราะ
+แปลไทยแล้วอ่านเพี้ยนหรือเป็นชื่อเฉพาะ
