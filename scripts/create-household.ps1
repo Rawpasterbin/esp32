@@ -1,10 +1,12 @@
-# Create a production household + device and save the one-time device token.
+# Create a household + device and save the one-time device token.
 #
 # Usage:
 #   $env:SETUP_TOKEN = '...'
 #   powershell -ExecutionPolicy Bypass -File scripts/create-household.ps1 `
-#     -HouseholdName 'บ้านของเรา'
+#     -ApiBase 'https://<your-worker-url>' `
+#     -HouseholdName '<household-name>'
 #
+# ApiBase defaults to the local Worker (http://127.0.0.1:8787).
 # The password is prompted as a SecureString when -Password is omitted.
 # Output is written outside the repo (default: the current user's temp directory)
 # and contains the device token. Never commit that file.
@@ -17,7 +19,7 @@ param(
 
   [string]$DeviceName = 'วาล์วน้ำ',
 
-  [string]$ApiBase = 'https://water-valve-api-v2.czqwertyyy.workers.dev',
+  [string]$ApiBase = 'http://127.0.0.1:8787',
 
   [string]$OutFile = (Join-Path ([System.IO.Path]::GetTempPath()) 'water-valve-household.json'),
 

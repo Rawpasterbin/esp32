@@ -2,32 +2,28 @@
 
 > Language: [ไทย](README.md) | **English**
 
-Firmware for one water valve, driven by an ESP32 over a 4G/5G SIM.
-Cloudflare Worker v2 + D1 is the source of truth for mode and schedules;
-MQTT is the real-time command/status channel.
+Firmware for a single water valve, driven by an ESP32 over a 4G/5G SIM.
+Cloudflare Worker v2 and D1 are the source of truth for mode and schedules;
+MQTT is the real-time command and status channel.
 
 ```
 Android app ──HTTPS──> Worker v2 ──D1 (config, commands, audit)
                             ▲
                             │ HTTPS sync (15 min)
                             │
-ESP32 ──MQTT/TLS 8883──> HiveMQ Cloud <──MQTT/TLS── Android app
+ESP32 ──MQTT/TLS 8883──> HiveMQ Cloud
 ```
 
-> The Android app currently uses HTTPS + the Worker command queue; MQTT is
-> the ESP32 channel (and a future option for the app).
+> The Android application currently uses HTTPS and the Worker command queue. MQTT is the ESP32 channel and will support real-time control from the application in a later phase.
 
-## What changed from v1
+## Design notes
 
-- Mode and schedules come from Worker v2, not from the phone.
-- Every command has a `commandId` (the last 8 are remembered across reboots,
-  so a QoS1 redelivery cannot execute twice) and a TTL (`expiresAt`).
-- Overnight schedules (for example 22:00–06:00) work correctly: the
-  after-midnight part uses the previous day's flag.
-- The valve is forced **closed** at boot and closed again if it stays open
-  longer than `maxopen` minutes, even with no network.
-- Wi-Fi is only a bench/debug option; production uses the A7672X modem.
-- No WebView, no web UI dependency.
+- Mode and schedules come from Worker v2 and are no longer stored on the phone.
+- Every command has a `commandId` (the last 8 are remembered across reboots, so a QoS1 redelivery cannot execute twice) and a TTL (`expiresAt`).
+- Overnight schedules, such as 22:00–06:00, work correctly: the after-midnight part uses the previous day's flag.
+- The valve is forced closed at boot and closed again if it stays open longer than `maxopen` minutes, even without a network connection.
+- Wi-Fi is used for testing only; production uses the A7672X modem.
+- No WebView and no dependency on the web UI.
 
 ## Hardware
 
@@ -36,7 +32,7 @@ ESP32 ──MQTT/TLS 8883──> HiveMQ Cloud <──MQTT/TLS── Android app
 | Modem UART RX | GPIO16 | ESP32 RX ← A7672X TX |
 | Modem UART TX | GPIO17 | ESP32 TX → A7672X RX |
 | Modem power | 5 V | Use a supply that can deliver 2 A peaks |
-| Relay IN | GPIO23 | Active level must be verified on the bench |
+| Relay IN | GPIO23 | Active level must be verified on the actual board |
 | Relay VCC/GND | 5 V / GND | Common ground with the ESP32 |
 | Valve | Relay COM/NO | Use a relay rated for the valve current |
 
@@ -75,27 +71,26 @@ Cellular production build (default, `USE_CELLULAR=1`):
 
 ```powershell
 arduino-cli compile --fqbn esp32:esp32:esp32 `
-  --libraries "$env:USERPROFILE\Documents\Arduino\libraries" `
+  --libraries "<arduino-libraries>" `
   esp32_water_valve
 ```
 
-Wi-Fi bench build (`USE_CELLULAR=0`):
+Wi-Fi test build (`USE_CELLULAR=0`):
 
 ```powershell
 arduino-cli compile --fqbn esp32:esp32:esp32 `
-  --libraries "$env:USERPROFILE\Documents\Arduino\libraries" `
+  --libraries "<arduino-libraries>" `
   --build-property "compiler.cpp.extra_flags=-DUSE_CELLULAR=0" `
   esp32_water_valve
 ```
 
-Flash (replace `COM5`):
+Flash the board (use the actual port):
 
 ```powershell
-arduino-cli upload -p COM5 --fqbn esp32:esp32:esp32 esp32_water_valve
+arduino-cli upload -p <serial-port> --fqbn esp32:esp32:esp32 esp32_water_valve
 ```
 
-The Wi-Fi build is larger (TLS + Wi-Fi ≈ 1.05 MB / 80% of the default app
-partition) but still fits. The cellular build is ≈ 460 KB.
+The Wi-Fi build is larger (TLS and Wi-Fi use about 1.05 MB, or 80% of the default app partition) but still fits. The cellular build is approximately 460 KB.
 
 ## First-time provisioning
 
@@ -106,14 +101,14 @@ Provisioning is stored in NVS and survives reboots.
 
 ```powershell
 $body = @{
-  householdName = 'Home'
-  deviceName    = 'Valve 1'
+  householdName = '<household-name>'
+  deviceName    = '<device-name>'
   password      = '<household-password>'
   timezone      = 'Asia/Bangkok'
 } | ConvertTo-Json
 
 Invoke-RestMethod -Method Post `
-  -Uri 'https://water-valve-api-v2.czqwertyyy.workers.dev/v1/setup' `
+  -Uri 'https://<your-worker-url>/v1/setup' `
   -Headers @{ 'X-Setup-Token' = '<SETUP_TOKEN>' } `
   -ContentType 'application/json' `
   -Body $body
@@ -129,7 +124,7 @@ set token dev_xxxxxxxxxxxxxxxx
 set apn internet
 set apnuser <apn-user-if-required>
 set apnpass <apn-password-if-required>
-set url https://water-valve-api-v2.czqwertyyy.workers.dev
+set url https://<your-worker-url>
 set mqtthost <hivemq-host>
 set mqttuser <hivemq-user>
 set mqttpass <hivemq-password>
@@ -139,7 +134,7 @@ status
 reboot
 ```
 
-For the Wi-Fi bench build only:
+For the Wi-Fi test build only:
 
 ```text
 set ssid <wifi-name>
@@ -152,7 +147,7 @@ Notes:
 - `set maxopen` accepts 1–240 minutes; the default is 30.
 - `status` prints secrets masked.
 - `sync` forces an immediate HTTPS sync.
-- The default Worker URL is compiled in and can be overridden with `set url`.
+- The Worker URL is **not** compiled in; provision it with `set url` before syncing.
 - The MQTT host and credentials are **not** compiled in; provision them with
   `set mqtthost`, `set mqttuser`/`set mqttpass` before using MQTT.
 - The default APN is `internet`; change it for your carrier if needed.
@@ -166,7 +161,7 @@ Notes:
 | `set token <dev_...>` | Device token from `/v1/setup` |
 | `set apn <name>` | Cellular APN |
 | `set apnuser <u>` / `set apnpass <p>` | APN credentials |
-| `set ssid <name>` / `set pass <p>` | Wi-Fi bench only |
+| `set ssid <name>` / `set pass <p>` | Wi-Fi test build only |
 | `set url <https://...>` | Worker base URL |
 | `set mqtthost <host>` | MQTT broker hostname (must be provisioned) |
 | `set mqttuser <u>` / `set mqttpass <p>` | MQTT credentials |
@@ -177,21 +172,13 @@ Notes:
 
 ## Timezone
 
-Schedules and NTP use a fixed **UTC+7 (Asia/Bangkok)** offset
-(`GMT_OFFSET_SEC` in the sketch). The Worker household has a `timezone`
-field, but the firmware does not read it yet. If the house is not in
-UTC+7, change `GMT_OFFSET_SEC` and redeploy. The Android app renders
-schedule times in the phone's local timezone, so the phone must use the
-same timezone as the valve.
+Schedules and NTP use a fixed **UTC+7 (Asia/Bangkok)** offset (`GMT_OFFSET_SEC` in the sketch). The Worker household has a `timezone` field, but the firmware does not read it yet. If the installation is not in UTC+7, change `GMT_OFFSET_SEC` and redeploy. The Android application renders schedule times in the device's local timezone, so the device must use the same timezone as the valve.
 
 ## MQTT topics
 
-> **v1 isolation warning:** topics are global (`myhouse/valve/...`) and the
-> HiveMQ user is shared. Deploy only one household/valve per MQTT broker until
-> per-device topics or scoped credentials are implemented. See
-> `../docs/SECURITY.md`.
+> **Current limitation:** topics are global (`myhouse/valve/...`) and the HiveMQ user is shared. One household per MQTT broker is supported until per-device topics or scoped credentials are implemented.
 
-MQTT is optional for v1: if `mqttuser`/`mqttpass` are empty, the device still
+MQTT is optional: if `mqttuser`/`mqttpass` are empty, the device still
 connects, syncs config every 15 minutes, and runs schedules/queued commands.
 The only difference is that real-time MQTT control/status is unavailable.
 
@@ -285,14 +272,13 @@ and HTTPS therefore cannot stay open at the same time. The firmware:
 
 During this short window (a few seconds every 15 minutes) MQTT commands
 are not delivered. For critical control, the app should also POST
-`/v1/commands` so the command is queued in D1 and delivered by the next
+`/v1/households/:hid/commands` so the command is queued in D1 and delivered by the next
 sync. Do not "fix" this by opening two TinyGSM secure clients: the modem
 session and `sockets[0]` routing will collide.
 
 ## Data budget (399 MB/month SIM)
 
-The single-session design means a fresh TLS handshake for every sync and
-MQTT reconnect. A realistic estimate:
+The single-session design means a fresh TLS handshake for every sync and MQTT reconnect. A realistic estimate:
 
 | Traffic | Estimate |
 |---|---|
@@ -302,9 +288,7 @@ MQTT reconnect. A realistic estimate:
 | Commands/acks | < 1 MB/month |
 | **Total** | **~55–105 MB/month** |
 
-This leaves ample headroom under 399 MB. If the carrier charges for
-signaling or the modem retries aggressively, check the SIM dashboard
-after the first week and increase `SYNC_INTERVAL_MS` if needed.
+This leaves ample headroom under 399 MB. If the carrier charges for signaling or the modem retries aggressively, check the SIM dashboard after the first week and increase `SYNC_INTERVAL_MS` if needed.
 
 ## Safety behavior
 
@@ -324,29 +308,21 @@ after the first week and increase `SYNC_INTERVAL_MS` if needed.
 
 ## TLS certificate rotation
 
-As of **5 Nov 2026**, `water-valve-api-v2.czqwertyyy.workers.dev` serves a
-chain rooted at **GlobalSign Root CA (RSA)**:
-leaf → Google Trust Services WE1 → GTS Root R4 (cross-signed) →
-GlobalSign Root CA. The firmware's `ROOT_CA` is that RSA root.
+The deployed Worker host uses a chain rooted at **GlobalSign Root CA (RSA)** for Cloudflare:
 
-MQTT (HiveMQ Cloud) uses a different chain rooted at **ISRG Root X1**
-(Let's Encrypt); `ROOT_CA_HIVEMQ` holds that root. The WiFi build creates a
-persistent bundle (`ROOT_CA` + `ROOT_CA_HIVEMQ`) and calls `setCACert()` once.
-The bundle must stay alive for the client lifetime — a temporary `String`
-causes mbedTLS "X509 - Format not recognized".
+leaf → Google Trust Services WE1 → GTS Root R4 (cross-signed) → GlobalSign Root CA
+
+The firmware's `ROOT_CA` is that RSA root. MQTT (HiveMQ Cloud) uses a different chain rooted at **ISRG Root X1** (Let's Encrypt), which is stored in `ROOT_CA_HIVEMQ`. The Wi-Fi build creates a persistent bundle (`ROOT_CA` + `ROOT_CA_HIVEMQ`) and calls `setCACert()` once. The bundle must stay alive for the lifetime of the client; a temporary `String` causes mbedTLS to report "X509 - Format not recognized".
 
 If Cloudflare or HiveMQ changes the chain:
 
 1. Inspect the real chain from a client that reaches the endpoint:
    `openssl s_client -showcerts -connect <host>:443|8883 -servername <host>`
-2. Get the root CA PEM.
-3. Replace `ROOT_CA` (HTTPS) or `ROOT_CA_HIVEMQ` (MQTT) in
-   `esp32_water_valve.ino`.
-4. Reflash. The firmware re-uploads the configured CA to the modem as
-   `cfroot.pem` at boot.
+2. Extract the root CA PEM.
+3. Replace `ROOT_CA` (HTTPS) or `ROOT_CA_HIVEMQ` (MQTT) in `esp32_water_valve.ino`.
+4. Reflash. The firmware uploads the configured CA to the modem as `cfroot.pem` at boot.
 
-The modem certificate file is small (~1–2 KB) and is uploaded once per
-boot, so a factory-reset modem recovers automatically.
+The modem certificate file is small (1–2 KB) and is uploaded once per boot, so a factory-reset modem recovers automatically.
 
 ## Troubleshooting
 
@@ -369,4 +345,4 @@ boot, so a factory-reset modem recovers automatically.
 - `README.en.md` — this file
 - Worker API: `../worker/v2/index.js`
 - Schema: `../migrations/0001_init.sql`
-- Architecture: `../docs/ARCHITECTURE_CENTRAL_CONFIG.md`
+- Main README: `../README.en.md`

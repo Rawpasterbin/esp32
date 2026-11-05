@@ -1,7 +1,7 @@
 /*
  * Water Valve Controller v2
  * ------------------------------------------------------------------
- * ESP32 + A7670/A7672X (4G) or Wi-Fi (bench only) + relay on GPIO 23.
+ * ESP32 + A7670/A7672X (4G) or Wi-Fi (test only) + relay on GPIO 23.
  *
  * Source of truth : Cloudflare Worker v2 + D1
  * Realtime channel: MQTT over TLS 8883 (HiveMQ Cloud)
@@ -22,8 +22,8 @@
  *   set apn internet
  *   set apnuser <user>
  *   set apnpass <pass>
- *   set ssid <wifi-name>          (bench only)
- *   set pass <wifi-password>      (bench only)
+ *   set ssid <wifi-name>          (test only)
+ *   set pass <wifi-password>      (test only)
  *   set url https://your-worker.workers.dev
  *   set mqtthost <host>
  *   set mqttuser <user>
@@ -35,7 +35,7 @@
  *
  * Build flags:
  *   USE_CELLULAR=1 (default) -> A7672X on Serial2 RX16/TX17
- *   USE_CELLULAR=0           -> Wi-Fi (bench testing)
+ *   USE_CELLULAR=0           -> Wi-Fi (test build)
  *
  * Libraries: PubSubClient, ArduinoJson >= 7, TinyGSM >= 0.12
  */
@@ -66,15 +66,16 @@
 #define FIRMWARE_VERSION "2.1.0"
 
 const int RELAY_PIN = 23;
-// VERIFY ON THE BENCH: HIGH = open on the current relay module.
+// VERIFY ON THE ACTUAL BOARD: HIGH = open on the current relay module.
 // If the module is active-low, set this to 0.
 #define RELAY_ACTIVE_HIGH 1
 
 const long GMT_OFFSET_SEC = 7 * 3600; // Asia/Bangkok
 const long DAYLIGHT_OFFSET_SEC = 0;
 
-const char *DEFAULT_WORKER_URL = "https://water-valve-api-v2.czqwertyyy.workers.dev";
-// ไม่ฝัง broker host จริงใน repo; provision ด้วย `set mqtthost <host>`
+// ไม่ฝัง Worker URL จริงใน repo; provision ด้วย `set url <https://...>`
+const char *DEFAULT_WORKER_URL = "";
+// The broker host is not compiled in; provision it with `set mqtthost <host>`.
 const char *DEFAULT_MQTT_HOST = "";
 const uint16_t MQTT_PORT = 8883;
 
@@ -1192,7 +1193,7 @@ void printHelp() {
   Serial.println("  show");
   Serial.println("  set token <dev_...>");
   Serial.println("  set apn <name> | set apnuser <u> | set apnpass <p>");
-  Serial.println("  set ssid <name> | set pass <password>   (Wi-Fi bench only)");
+  Serial.println("  set ssid <name> | set pass <password>   (Wi-Fi test only)");
   Serial.println("  set url <https://...>");
   Serial.println("  set mqtthost <host>");
   Serial.println("  set mqttuser <u> | set mqttpass <p>");
@@ -1396,7 +1397,7 @@ void setup() {
   }
   Serial.println(modemReady ? "Modem ready" : "Modem NOT ready");
 #else
-  Serial.println("Wi-Fi bench mode");
+  Serial.println("Wi-Fi test mode");
 #endif
 
   if (connectNetwork()) {

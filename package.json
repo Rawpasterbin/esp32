@@ -1,19 +1,25 @@
 {
   "name": "appesp32",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Water valve scheduler: Cloudflare Worker + D1 API, native Android client, and ESP32/A7672X firmware",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Rawpasterbin/esp32.git"
   },
-  "keywords": [],
+  "keywords": [
+    "esp32",
+    "cloudflare-workers",
+    "d1",
+    "mqtt",
+    "irrigation",
+    "android"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Rawpasterbin/esp32/issues"
   },
