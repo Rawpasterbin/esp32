@@ -2,6 +2,9 @@
 
 ## Latest: v2.1-native (5 Nov 2026)
 
+- **GitHub Release:** <https://github.com/Rawpasterbin/esp32/releases/tag/v2.1-native>
+- **Direct download:**
+  <https://github.com/Rawpasterbin/esp32/releases/download/v2.1-native/water-valve-2.1-native-release.apk>
 - **File:** `water-valve-2.1-native-release.apk`
 - **Build:** release variant, `versionCode 2`, `versionName 2.1-native`
   (R8/minify disabled on this 8 GB build host; see the migration plan)
